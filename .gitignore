@@ -1,0 +1,8 @@
+target/
+.env
+*.class
+*.jar
+.DS_Store
+.quarkus/
+*.iml
+.idea/
