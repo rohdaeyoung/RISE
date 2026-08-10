@@ -24,7 +24,14 @@
       "Bash(git config *)",
       "Bash(git init *)",
       "Bash(git checkout *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git commit *)",
+      "mcp__github__get_file_contents",
+      "Bash(git mv *)"
     ]
   }
 }
