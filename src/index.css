@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/* WITHU Design System (디자인 해커톤.txt) 배경/그림자/라운드/뉴트럴 토큰은 그대로 적용.
+   브랜드 컬러는 보라색(AI스러운 톤)에서 상쾌한 스프링 그린으로 교체 — 다이어트/건강 컨셉과 맞고,
+   기존 success(#79c96b, 옐로그린)와 헷갈리지 않도록 살짝 블루 undertone의 에메랄드 그린을 씀. */
+@theme {
+  --color-cream: #fffdf8;
+  --color-card: #ffffff;
+  --color-brand: #2fb673;
+  --color-brand-dark: #229058;
+  --color-brand-light: #5cd394;
+  --color-brand-soft: #e7faf0;
+  --color-warn: #f27d72;
+  --color-warn-soft: #fceceb;
+  --color-ink: #2e2a26;
+  --color-sub: #7a746e;
+
+  --color-bg: #fffdfa;
+  --color-success: #79c96b;
+  --color-gray-900: #4a4642;
+  --color-gray-700: #7a746e;
+  --color-gray-500: #b9b2aa;
+  --color-gray-300: #e7dfd5;
+  --color-divider: #f2ece4;
+
+  /* User Signature Color — 사람은 브랜드색이 아니라 이 4색으로 구분(그룹 참여 순서대로 배정). */
+  --color-user-1: #ffd737;
+  --color-user-2: #93f1c5;
+  --color-user-3: #ff9d9d;
+  --color-user-4: #96c2ff;
+
+  --shadow-card: 0 6px 18px rgba(46, 42, 38, 0.1);
+  --shadow-modal: 0 -12px 40px rgba(46, 42, 38, 0.15);
+
+  --radius-sheet: 2rem;
+  --radius-image: 1.25rem;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100svh;
+  background: #fffdfa;
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", Roboto, sans-serif;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* 캐릭터 숨쉬기 모션 — withu-character-motion 인계 패키지의 CharacterFace.tsx 구현을
+   CSS로 이식한 것. 들숨 1800ms + 날숨 1800ms, sin 계열 ease-in-out, 하단 중앙 기준으로
+   세로로만 부풀고(가로는 24%만) 발 위치는 transform-origin으로 고정. */
+@keyframes character-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+    animation-timing-function: ease-in-out;
+  }
+  50% {
+    transform: scale(var(--breath-scale-x, 1), var(--breath-scale-y, 1));
+    animation-timing-function: ease-in-out;
+  }
+}
+
+.character-breathe {
+  transform-origin: 50% 100%;
+  animation: character-breathe 3600ms infinite;
+  animation-delay: var(--breath-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .character-breathe {
+    animation: none;
+  }
+}
