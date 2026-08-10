@@ -60,3 +60,12 @@ src/
 | `mealApi.js` | 랜덤 달성/미달성 판정 | GPT-4o Vision 식단 분석 |
 
 자세한 화면별 동작과 백엔드 전달 사항은 [`DEVLOG.md`](./DEVLOG.md), 전체 기획은 [`docs/PRD.md`](./docs/PRD.md)를 참고하세요.
+
+## 브랜치 전략
+
+| 브랜치 | 용도 |
+|--------|------|
+| `main` | 배포용 |
+| `develop` | 개발 통합 |
+| `feature/FE-*` | 기능 개발 |
+| `hotfix/*` | 긴급 수정 |
