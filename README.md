@@ -54,10 +54,13 @@ VITE_API_BASE_URL=http://localhost:8080
 | 기능 | 상태 |
 |---|---|
 | 회원가입 / 로그인 (JWT) | ✅ |
+| 닉네임 설정 | ✅ 랭킹·그룹 피드 표시 이름 |
 | 캐릭터 생성 / 종 변경 | ✅ |
 | 그룹 생성 / 참여 (6자리 코드, 2~4인) | ✅ |
 | 온보딩 (목표·성별·나이·키·몸무게) | ✅ |
 | **AI 개인 맞춤 미션 생성** (GPT-4o-mini) | ✅ 목표별로 실제 다른 미션 생성 |
+| **AI 피드백 루프** (어제 식단 → 오늘 미션) | ✅ 실패한 끼니를 정조준한 미션 생성 |
+| **미션 난이도 자동 조절** (PRD 6) | ✅ 90%↑상승 / 50~90%유지 / 50%↓하향 / 3일연속실패→1개 |
 | **AI 식단 사진 분석** (GPT-4o-mini Vision) | ✅ 샐러드 승인 / 치킨 거절 — 실제 판별함 |
 | 미션 시간대별 잠금 해제 (0/3.5/7/11시간) | ✅ |
 | 코인 지급 / 상점 구매·착용 | ✅ |
@@ -122,7 +125,7 @@ com.withu
 
 | 도메인 | 엔드포인트 |
 |---|---|
-| 인증 | `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/auth/me` |
+| 인증 | `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/auth/me`, `PATCH /api/auth/me/nickname` |
 | 캐릭터 | `POST /api/characters`, `GET /api/characters/me`, `PATCH /api/characters/me/species` |
 | 그룹 | `POST /api/groups`, `POST /api/groups/join`, `GET /api/groups/me`, `DELETE /api/groups/me`, `PATCH /api/groups/me/name`, `PATCH /api/groups/me/mission-time` |
 | 온보딩 | `POST /api/onboarding`, `GET /api/onboarding/me` |
@@ -173,11 +176,10 @@ com.withu
 2. **심사용 데모 계정 세팅** — 배포 후 실서버에 테스트 계정을 만들고 캐릭터·그룹·온보딩·미션까지
    미리 채워둬야 심사위원이 로그인하자마자 완성된 화면을 봅니다.
 3. **`main` 브랜치 병합** — 대회 심사는 main/master 기준이라 마감(8/21) 전에 반드시 병합.
-4. **미션 난이도 자동 조절** (PRD 6번) — 미구현.
-   달성률 90%↑ 상승 / 50~90% 유지 / 50%↓ 하향 / 3일 연속 실패 시 미션 1개로 축소.
-   현재 `MissionService`가 AI에 넘기는 `history` 값이 `0`으로 하드코딩돼 있습니다.
-   `internalFit`(식단 사진 분석의 내부 판정값, UI 노출 금지)을 다음 미션 생성 입력으로
-   넘기는 것도 함께 하면 AAC 트랙 "AI 차별성" 점수에 유리합니다.
+4. **PRD 대비 남은 소소한 것** — 식단 피드백 텍스트(PRD 6 출력값), 코인 획득 중
+   '하루 전체 달성'·'연속 달성' 보너스(PRD 11), 미션 자동 생성 스케줄러(PRD 7).
+   그룹 랭킹 기준은 PRD가 '주간 달성률'인데 구현·프론트 모두 '오늘 달성률'이라 기획 확인 필요.
+
 
 ---
 
