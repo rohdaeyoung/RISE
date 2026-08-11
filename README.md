@@ -1,59 +1,124 @@
-# RISE Server
+# RISE Server (WITHU 백엔드)
 
 WITHU — AI 기반 개인 맞춤 건강 미션과 그룹 동기부여를 결합한 웰니스 그룹 서비스의 백엔드입니다.
+멋쟁이사자처럼 대학 14기 중앙 해커톤(ANIMAL LEAGUE) **AAC 트랙** 출품작, 성결대 3팀.
 
-## 기술 스택
+> **이어받는 사람(그리고 AI)에게**: 이 문서 하나만 읽으면 바로 이어서 작업할 수 있게 썼습니다.
+> 특히 [지금까지 한 일](#지금까지-한-일)과 [건드릴 때 주의할 것](#건드릴-때-주의할-것)은
+> 꼭 읽고 시작하세요. 이미 한 번 밟은 지뢰를 다시 밟지 않기 위한 내용입니다.
 
-- Spring Boot 4 (Java 21) + Gradle
-- Spring Data JPA + MySQL
-- Spring Security + JWT (Access Token)
-- springdoc-openapi (Swagger UI)
+---
 
-## 실행 방법
+## 현재 상태 한 줄 요약
+
+**MVP 전 기능 구현 + 프론트 연동 + 실제 OpenAI 연동까지 끝났고, 브라우저에서 전 기능 검증 완료.
+남은 건 배포뿐입니다.**
+
+---
+
+## 빠르게 실행하기
 
 ```bash
-# 로컬 MySQL에 withu 데이터베이스 생성
+# 1. DB 준비
 mysql -u root -e "CREATE DATABASE withu CHARACTER SET utf8mb4;"
 
-# 프로젝트 루트에 .env 파일 생성 (git에 올라가지 않음)
+# 2. 프로젝트 루트에 .env 생성 (git에 안 올라감 — 절대 커밋하지 말 것)
 echo "OPENAI_API_KEY=발급받은-키" > .env
 
+# 3. 실행
 ./gradlew bootRun
 ```
 
-기동 후 Swagger UI: http://localhost:8080/swagger-ui.html
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- MySQL이 3306이 아니면: `DB_PORT=3307 ./gradlew bootRun`
+- **`.env` 없이도 그냥 돌아갑니다.** 키가 없으면 AI가 mock 구현체로 자동 전환되므로,
+  키를 못 받은 사람도 백엔드 개발을 계속할 수 있습니다.
 
-MySQL이 3306이 아닌 다른 포트에 떠 있다면 `DB_PORT=3307 ./gradlew bootRun`처럼 포트를 넘겨주면 됩니다.
+### 프론트와 같이 띄우기
+
+프론트(`RISE-client`)의 `frontend/.env.local`에 아래 한 줄을 넣고 `npm run dev`:
+
+```
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+이 값을 **지우면 프론트가 mock 모드로 돌아갑니다.** 백엔드 없이 프론트만 데모할 수 있도록
+일부러 이렇게 분리해 두었으니, 연동한다고 mock 코드를 지우지 마세요.
+
+---
+
+## 지금까지 한 일
+
+### 구현 완료 (전부 브라우저에서 실제 동작 확인함)
+
+| 기능 | 상태 |
+|---|---|
+| 회원가입 / 로그인 (JWT) | ✅ |
+| 캐릭터 생성 / 종 변경 | ✅ |
+| 그룹 생성 / 참여 (6자리 코드, 2~4인) | ✅ |
+| 온보딩 (목표·성별·나이·키·몸무게) | ✅ |
+| **AI 개인 맞춤 미션 생성** (GPT-4o-mini) | ✅ 목표별로 실제 다른 미션 생성 |
+| **AI 식단 사진 분석** (GPT-4o-mini Vision) | ✅ 샐러드 승인 / 치킨 거절 — 실제 판별함 |
+| 미션 시간대별 잠금 해제 (0/3.5/7/11시간) | ✅ |
+| 코인 지급 / 상점 구매·착용 | ✅ |
+| 그룹 피드 (사진·달성률·표정) | ✅ |
+| 캐릭터 표정 3단계 | ✅ 달성률+순위로 실시간 계산 |
+| 그룹 랭킹 / 전체 랭킹 | ✅ |
+| **7일 챌린지 종료 + 순위별 보상** | ✅ 멱등 처리 (두 번 눌러도 중복 지급 없음) |
+| 계속하기 / 방 나가기 | ✅ |
+
+### 검증하며 잡은 버그 (같은 실수 반복 방지용)
+
+브라우저로 실제 화면을 보며 검증했더니 **API만 봐서는 안 보이던 버그가 7개** 나왔습니다.
+이 중 3개는 "프론트는 이미 그 필드를 쓰는데 백엔드가 안 준다" 유형이었습니다.
+
+1. **캐릭터 표정이 항상 NORMAL** — `changeExpression()`을 호출하는 코드가 아예 없었음
+2. **그룹 피드 전원 0%** — 프론트가 쓰는 `achievementRate`를 서버가 안 보냄
+3. **그룹원 인증 사진 안 보임** — 프론트가 쓰는 `photo`를 서버가 안 보냄
+4. **사진 경로가 상대경로** — 프론트/백 origin이 달라 이미지가 깨짐
+5. **동점 시 순위가 임의** — 달성률 95%가 71%보다 아래로 가고 우승 뱃지까지 뒤바뀜
+6. **Day가 항상 1/7** — 프론트가 로컬 시계로 계산해 서버 `currentDay`를 무시 → 결과 화면이 안 뜸
+7. **산 의상이 새로고침하면 사라짐** — 서버에서 `ownedOutfits`를 안 받아옴
+
+> **교훈**: 기능을 추가하면 curl 검증에서 멈추지 말고 **반드시 브라우저로 화면까지 확인**하세요.
+> 프론트가 기대하는 필드는 `RISE-client/frontend/src/api/*.js`의 매핑 함수를 먼저 읽고
+> 백엔드 DTO와 대조하면 빠르게 찾을 수 있습니다.
+
+---
 
 ## 프로젝트 구조
 
-도메인(기능)별 패키지로 분리되어 있고, 각 도메인 내부는 `controller / service / repository / entity / dto`로 나뉩니다.
+도메인(기능)별 패키지로 분리, 각 도메인 내부는 `controller / service / repository / entity / dto`.
 
 ```
 com.withu
-  ├── global/        공통 설정, 예외 처리, JWT 시큐리티, 공통 응답 포맷
+  ├── global/         공통 설정, 예외 처리, JWT 시큐리티, 공통 응답 포맷(ApiResponse)
   ├── auth/           회원가입 / 로그인
-  ├── character/      캐릭터 생성 / 종 변경
+  ├── character/      캐릭터, 표정 계산(ExpressionPolicy, ExpressionResolver)
   ├── group/          그룹 생성 / 참여 / 설정
   ├── onboarding/     목표 / 신체정보 (그룹 사이클마다 갱신)
   ├── mission/        일일 개인 맞춤 미션 생성 / 인증
-  ├── meal/            식단 사진 인증 / AI 분석
-  ├── shop/            코인 / 의상 구매·착용
-  ├── ranking/         그룹 내 / 전체 랭킹
-  └── ai/              AI 연동 포트(MissionAiClient, MealVisionAiClient) + mock 구현체
+  ├── meal/           식단 사진 인증 / AI 분석
+  ├── challenge/      7일 챌린지 종료 정산, 보상, 뱃지
+  ├── file/           사진 저장 (DB BLOB) / 서빙
+  ├── shop/           코인 / 의상 구매·착용
+  ├── ranking/        그룹 내 / 전체 랭킹
+  └── ai/             AI 포트(인터페이스) + openai 구현체 + mock 구현체
 ```
 
 ## AI 연동
 
-`ai` 패키지의 `MissionAiClient`, `MealVisionAiClient` 인터페이스가 AI 연동 지점입니다.
+`ai` 패키지의 `MissionAiClient`, `MealVisionAiClient` 인터페이스가 유일한 AI 연동 지점입니다.
 
-- `.env`에 `OPENAI_API_KEY`가 있으면 → `ai/openai`의 실제 OpenAI 구현체가 등록됨 (미션 생성, 식단 사진 분석)
-- 키가 없으면 → `ai/mock`의 mock 구현체가 그대로 동작 (백엔드만 단독으로 개발/테스트할 때 유용)
+- `.env`에 `OPENAI_API_KEY`가 **있으면** → `ai/openai`의 실제 구현체가 `@Primary`로 등록
+- **없으면** → `ai/mock`의 mock 구현체가 동작
 
-전환은 설정만으로 이루어지고 도메인 서비스(`MissionService`, `MealService`) 코드는 건드릴 필요가 없습니다.
-사용 모델은 `application.yml`의 `openai.mission-model` / `openai.vision-model`에서 변경할 수 있습니다 (기본 `gpt-4o-mini`).
+전환은 설정만으로 이뤄지고 `MissionService` / `MealService` 코드는 건드릴 필요가 없습니다.
+모델은 `application.yml`의 `openai.mission-model` / `openai.vision-model`에서 변경 (기본 `gpt-4o-mini`).
 
-## API 개요
+---
+
+## API 목록
 
 | 도메인 | 엔드포인트 |
 |---|---|
@@ -63,26 +128,70 @@ com.withu
 | 온보딩 | `POST /api/onboarding`, `GET /api/onboarding/me` |
 | 미션 | `POST /api/missions/today`, `GET /api/missions/today`, `POST /api/missions/{id}/verify` |
 | 식단 | `POST /api/meals/{slot}/analyze` (multipart), `GET /api/meals/today` |
+| 챌린지 | `POST /api/challenges/end`, `GET /api/challenges/summary`, `POST /api/challenges/continue` |
+| 파일 | `GET /api/files/{id}` (인증 불필요) |
 | 상점 | `GET /api/shop/outfits`, `POST /api/shop/outfits/{id}/buy`, `POST /api/shop/outfits/{id}/wear` |
 | 랭킹 | `GET /api/rankings/group`, `GET /api/rankings/global` |
 
-모든 응답은 `{ success, data, error }` 형태(`ApiResponse`)로 감싸집니다. 인증이 필요한 API는
-`Authorization: Bearer {accessToken}` 헤더가 필요합니다 (회원가입/로그인 제외).
+모든 응답은 `{ success, data, error }`(`ApiResponse`)로 감싸집니다.
+인증 필요한 API는 `Authorization: Bearer {accessToken}` 헤더 필요 (회원가입/로그인/파일 제외).
 
-자세한 기획은 프론트 저장소의 `frontend/docs/PRD.md`, `frontend/DEVLOG.md`를 참고하세요.
+---
 
-## 앞으로 할 일
+## 건드릴 때 주의할 것
 
-- 그룹 랭킹 실시간 반영을 위한 폴링/웹소켓 방식 검토
-- 미션 난이도 자동 조절 (달성률 기반) — 현재는 mock 생성기에 미반영, PRD 6번 참고
-- 챌린지 7일 종료 처리(결과 화면, 보상 지급) API
-- 실제 배포 환경에서의 파일 스토리지(S3 등) 전환 — 현재는 로컬 디스크(`FileStorageService`)
+이미 한 번씩 문제가 됐던 지점들입니다.
+
+**설계 관련**
+- **캐릭터 표정은 저장값이 아니라 파생값입니다.** 조회 시점에 `ExpressionPolicy`로 계산합니다.
+  `characters.expression` 컬럼은 단건 조회용 캐시일 뿐이니, 여기 값을 믿고 쓰지 마세요.
+  규칙은 프론트 `AppContext.jsx`의 `expressionFromRank`와 **반드시 일치**해야 합니다.
+- **사진은 DB에 BLOB으로 저장합니다.** 컨테이너 파일시스템은 재배포하면 날아가서 그렇습니다.
+  저장 전 `ImageDownscaler`가 긴 변 1024px JPEG로 줄입니다. S3로 옮긴다면 `FileStorageService`만 교체하면 됩니다.
+- **`/api/files/**`는 인증 없이 열려 있습니다.** `<img src>`에 토큰 헤더를 못 붙이기 때문이고,
+  주소가 추측 불가능한 UUID라 괜찮다고 판단했습니다.
+- **동시 요청 방어는 DB 유니크 제약으로 합니다.** (그룹 중복 참여, 미션 세트 중복 생성)
+  React StrictMode가 개발 중 effect를 두 번 실행해서 실제로 터졌던 문제입니다.
+
+**환경 관련**
+- **`groups`는 MySQL 예약어**라 테이블명이 `study_groups`입니다.
+- **Spring 7은 Jackson 3을 쓰는데 OpenAI 클라이언트는 Jackson 2 API로 파싱합니다.**
+  그래서 요청 body를 직접 문자열로 직렬화하고 응답도 `String.class`로 받습니다.
+  이걸 "깔끔하게" `JsonNode`로 바꾸면 런타임에 터집니다.
+- Gradle wrapper 다운로드가 막힌 네트워크에서는 `./gradlew` 대신 시스템 `gradle`을 쓰세요.
+
+**협업 규칙**
+- **`.env`는 절대 커밋하지 마세요.** OpenAI 키가 들어 있고 `.gitignore`에 등록돼 있습니다.
+- 커밋 메시지에 AI 도구 이름/서명을 넣지 않습니다.
+
+---
+
+## 남은 일 (우선순위 순)
+
+1. **배포** — 배포처 미정 (Railway 또는 클라우드타입 검토 중). Dockerfile 아직 없음.
+   - 필요한 환경변수: `OPENAI_API_KEY`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`
+2. **심사용 데모 계정 세팅** — 배포 후 실서버에 테스트 계정을 만들고 캐릭터·그룹·온보딩·미션까지
+   미리 채워둬야 심사위원이 로그인하자마자 완성된 화면을 봅니다.
+3. **`main` 브랜치 병합** — 대회 심사는 main/master 기준이라 마감(8/21) 전에 반드시 병합.
+4. **미션 난이도 자동 조절** (PRD 6번) — 미구현.
+   달성률 90%↑ 상승 / 50~90% 유지 / 50%↓ 하향 / 3일 연속 실패 시 미션 1개로 축소.
+   현재 `MissionService`가 AI에 넘기는 `history` 값이 `0`으로 하드코딩돼 있습니다.
+   `internalFit`(식단 사진 분석의 내부 판정값, UI 노출 금지)을 다음 미션 생성 입력으로
+   넘기는 것도 함께 하면 AAC 트랙 "AI 차별성" 점수에 유리합니다.
+
+---
 
 ## 브랜치 전략
 
 | 브랜치 | 용도 |
 |--------|------|
-| `main` | 배포용 |
+| `main` | 배포용 (대회 심사 기준 브랜치) |
 | `develop` | 개발 통합 |
 | `feature/BE-*` | 기능 개발 |
 | `hotfix/*` | 긴급 수정 |
+
+현재 작업 브랜치: **`feature/BE-scaffold`**
+
+## 참고 문서
+
+기획 원문은 프론트 저장소에 있습니다: `RISE-client`의 `frontend/docs/PRD.md`, `frontend/DEVLOG.md`
