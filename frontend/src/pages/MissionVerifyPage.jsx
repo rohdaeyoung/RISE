@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Bot, Camera, CheckCircle2 } from 'lucide-react';
-import { resolveHomeRoute, useAppDispatch, useAppState } from '../context/AppContext';
-import { analyzeMissionPhoto } from '../api/missionApi';
+import { resolveHomeRoute, useAppDispatch, useAppState, useAppSync } from '../context/AppContext';
+import { analyzeMissionPhoto, completeMission } from '../api/missionApi';
+import { isBackendEnabled } from '../api/client';
 import { resizeImageFile } from '../utils/resizeImage';
 
 export default function MissionVerifyPage() {
   const { missionId } = useParams();
   const state = useAppState();
   const dispatch = useAppDispatch();
+  const sync = useAppSync();
   const navigate = useNavigate();
 
   const mission = state.missions.find((m) => m.id === missionId);
@@ -22,10 +24,14 @@ export default function MissionVerifyPage() {
 
     setStatus('loading');
 
-    Promise.all([resizeImageFile(file), analyzeMissionPhoto(file)]).then(([thumbnail]) => {
+    // 백엔드 모드에서는 미션 완료/코인 지급을 서버가 처리한다(사진은 인증 절차용).
+    const verify = isBackendEnabled ? completeMission(mission.id) : analyzeMissionPhoto(file);
+
+    Promise.all([resizeImageFile(file), verify]).then(([thumbnail]) => {
       setPreview(thumbnail);
       setStatus('done');
       dispatch({ type: 'COMPLETE_MISSION', missionId: mission.id, photo: thumbnail });
+      sync();
     });
   }
 

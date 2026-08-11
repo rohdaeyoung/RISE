@@ -1,6 +1,8 @@
-// 이메일 회원가입/로그인 mock. 백엔드 연동 시 아래 함수 내부만
-// POST /api/auth/signup, POST /api/auth/login, GET /api/auth/me 호출로 교체하면 됨.
-// 지금은 localStorage를 가짜 유저 테이블로 써서 중복 이메일 체크만 프론트에서 흉내냄.
+// 이메일 회원가입/로그인.
+// VITE_API_BASE_URL이 설정되면 실제 백엔드(POST /api/auth/signup, /api/auth/login)를 호출하고,
+// 없으면 기존처럼 localStorage를 가짜 유저 테이블로 쓰는 mock으로 동작한다.
+
+import { api, isBackendEnabled, setToken, clearToken } from './client';
 
 const USERS_KEY = 'withu_users_mock';
 
@@ -18,6 +20,13 @@ function saveUsers(users) {
 
 // input: { email, password }. output: { userId, email } | throws { field, message }
 export function signUp({ email, password }) {
+  if (isBackendEnabled) {
+    return api.post('/api/auth/signup', { email, password }).then((data) => {
+      setToken(data.accessToken);
+      return { userId: data.userId, email: data.email };
+    });
+  }
+
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       const users = loadUsers();
@@ -34,6 +43,13 @@ export function signUp({ email, password }) {
 
 // input: { email, password }. output: { userId, email } | throws { field, message }
 export function login({ email, password }) {
+  if (isBackendEnabled) {
+    return api.post('/api/auth/login', { email, password }).then((data) => {
+      setToken(data.accessToken);
+      return { userId: data.userId, email: data.email };
+    });
+  }
+
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       const users = loadUsers();
@@ -45,4 +61,8 @@ export function login({ email, password }) {
       resolve({ userId: user.userId, email: user.email });
     }, 500);
   });
+}
+
+export function logout() {
+  clearToken();
 }

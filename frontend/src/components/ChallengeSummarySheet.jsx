@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { Heart, Medal, PartyPopper, Plus } from 'lucide-react';
-import { memberColorIndex, useAppDispatch } from '../context/AppContext';
+import { memberColorIndex, useAppDispatch, useAppSync } from '../context/AppContext';
+import { continueChallenge } from '../api/challengeApi';
+import { leaveGroup } from '../api/groupApi';
 import CharacterAvatar from './CharacterAvatar';
 import CoinIcon from './CoinIcon';
 
@@ -15,16 +17,28 @@ const CARD_BG_CLASSES = ['bg-user-1/15', 'bg-user-2/15', 'bg-user-3/15', 'bg-use
 // 아직 그룹원이 없으면 "참여 대기 중" 빈 슬롯으로 정직하게 표시함(가짜 이름/데이터 없음).
 export default function ChallengeSummarySheet({ summary }) {
   const dispatch = useAppDispatch();
+  const sync = useAppSync();
   const navigate = useNavigate();
 
+  // 백엔드 모드에서는 서버가 새 사이클을 시작(사이클 점수 초기화 + 시작일 갱신)한 뒤
+  // 동기화로 새 미션을 받아온다. mock 모드에서는 리듀서가 로컬로 처리한다.
   function handleContinue() {
-    dispatch({ type: 'CONTINUE_CHALLENGE' });
-    navigate('/group');
+    continueChallenge()
+      .catch(() => {})
+      .finally(() => {
+        dispatch({ type: 'CONTINUE_CHALLENGE' });
+        sync();
+        navigate('/group');
+      });
   }
 
   function handleLeave() {
-    dispatch({ type: 'LEAVE_GROUP' });
-    navigate('/my');
+    leaveGroup()
+      .catch(() => {})
+      .finally(() => {
+        dispatch({ type: 'LEAVE_GROUP' });
+        navigate('/my');
+      });
   }
 
   // summary.ranking은 END_CHALLENGE에서 이미 포인트 기준으로 정렬해둔 전체 참가자 목록 —

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useAppDispatch, useAppState } from '../context/AppContext';
+import { useAppDispatch, useAppState, useAppSync } from '../context/AppContext';
+import { buyOutfit, changeSpecies, wearOutfit } from '../api/profileApi';
 import CharacterAvatar, { SPECIES_META } from '../components/CharacterAvatar';
 import CoinIcon from '../components/CoinIcon';
 import formalSetImg from '../assets/shop/formal-set.png';
@@ -24,25 +25,31 @@ const CARD_STYLES = ['bg-user-4/15', 'bg-user-1/15', 'bg-user-2/15', 'bg-user-3/
 export default function ShopPage() {
   const state = useAppState();
   const dispatch = useAppDispatch();
+  const sync = useAppSync();
   const species = state.character.species || 'bat';
   const equippedOutfit = state.character.outfit || 'everyday';
   const ownedOutfits = state.character.ownedOutfits || ['everyday'];
   const coins = state.coins || 0;
   const [previewOutfit, setPreviewOutfit] = useState(equippedOutfit);
 
+  // 백엔드 모드에서는 코인 차감/보유 상태를 서버가 검증하므로 서버에 먼저 반영하고 동기화한다.
+  // mock 모드에서는 아래 API들이 no-op이라 리듀서만으로 기존과 동일하게 동작한다.
   function handleSelectSpecies(value) {
     dispatch({ type: 'SET_CHARACTER', species: value });
+    changeSpecies(value).then(sync);
   }
 
   function handleEquip(outfitId) {
     setPreviewOutfit(outfitId);
     dispatch({ type: 'SET_OUTFIT', outfit: outfitId });
+    wearOutfit(outfitId).then(sync);
   }
 
   function handleBuy(item) {
     if (coins < item.price) return;
     dispatch({ type: 'BUY_OUTFIT', outfitId: item.id, price: item.price });
     setPreviewOutfit(item.id);
+    buyOutfit(item.id).then(sync);
   }
 
   return (

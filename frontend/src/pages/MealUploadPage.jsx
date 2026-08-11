@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Bot, Camera, CheckCircle2 } from 'lucide-react';
-import { MEAL_LABELS, resolveHomeRoute, useAppDispatch, useAppState } from '../context/AppContext';
+import { MEAL_LABELS, resolveHomeRoute, useAppDispatch, useAppState, useAppSync } from '../context/AppContext';
 import { analyzeMealPhoto } from '../api/mealApi';
 import { resizeImageFile } from '../utils/resizeImage';
 import CharacterAvatar from '../components/CharacterAvatar';
@@ -10,11 +10,13 @@ export default function MealUploadPage() {
   const { mealKey } = useParams();
   const state = useAppState();
   const dispatch = useAppDispatch();
+  const sync = useAppSync();
   const navigate = useNavigate();
 
   const [preview, setPreview] = useState(null);
   const [status, setStatus] = useState('idle'); // idle | loading | done
   const [achieved, setAchieved] = useState(null);
+  const [error, setError] = useState('');
 
   const label = MEAL_LABELS[mealKey] || '식사';
 
@@ -23,14 +25,22 @@ export default function MealUploadPage() {
     if (!file) return;
 
     setStatus('loading');
+    setError('');
 
-    Promise.all([resizeImageFile(file), analyzeMealPhoto(file)]).then(([thumbnail, result]) => {
-      setPreview(thumbnail);
-      setAchieved(result.achieved);
-      setStatus('done');
-      // 사용자에게는 달성/미달성만 노출. result.internalFit은 다음 미션 생성용 내부 데이터라 화면에 쓰지 않음.
-      dispatch({ type: 'LOG_MEAL', mealKey, achieved: result.achieved, photo: thumbnail });
-    });
+    Promise.all([resizeImageFile(file), analyzeMealPhoto(file, mealKey)])
+      .then(([thumbnail, result]) => {
+        setPreview(thumbnail);
+        setAchieved(result.achieved);
+        setStatus('done');
+        // 사용자에게는 달성/미달성만 노출. result.internalFit은 다음 미션 생성용 내부 데이터라 화면에 쓰지 않음.
+        dispatch({ type: 'LOG_MEAL', mealKey, achieved: result.achieved, photo: thumbnail });
+        // 백엔드 모드에서는 서버가 식단 미션 완료와 코인 지급까지 처리하므로 최신 상태를 다시 받아온다.
+        sync();
+      })
+      .catch((err) => {
+        setStatus('idle');
+        setError(err?.message || '분석에 실패했어요. 잠시 후 다시 시도해주세요');
+      });
   }
 
   return (
@@ -54,6 +64,8 @@ export default function MealUploadPage() {
           </span>
         )}
       </label>
+
+      {error && <p className="text-xs text-warn text-center mb-4">{error}</p>}
 
       {status === 'loading' && (
         <div className="text-center text-sub text-sm py-4">

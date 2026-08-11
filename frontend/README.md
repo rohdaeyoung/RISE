@@ -48,16 +48,33 @@ src/
   pages/        # 라우트별 화면
 ```
 
-## 백엔드 연동 현황
+## 백엔드 연동
 
-현재 `src/api/`의 각 파일은 백엔드 없이 동작하도록 mock으로 구현되어 있습니다. 실제 연동 시 아래 API로 교체가 필요합니다.
+프론트는 **백엔드 없이도 단독으로 동작**하고, 환경변수 하나로 실제 백엔드에 붙습니다.
 
-| 파일 | 현재 | 연동 시 |
+```bash
+# 백엔드 연동 모드 — frontend/.env.local 생성
+VITE_API_BASE_URL=http://localhost:8080
+
+# mock 모드 — 위 값을 비우거나 .env.local을 지우면 됨 (기본값)
+```
+
+| 모드 | 조건 | 동작 |
 |---|---|---|
-| `authApi.js` | localStorage 가짜 유저 테이블 | `POST /api/auth/signup`, `POST /api/auth/login` |
-| `groupApi.js` | 코드 형식만 검증, 항상 "나 혼자" 그룹 반환 | `POST /api/groups`, `POST /api/groups/join` |
-| `missionApi.js` | 목표별 고정 풀에서 미션 3개 추출 | GPT-4o 기반 개인 맞춤 미션 생성 |
-| `mealApi.js` | 랜덤 달성/미달성 판정 | GPT-4o Vision 식단 분석 |
+| **mock** | `VITE_API_BASE_URL` 없음 | localStorage 기반. 백엔드/DB 없이 프론트만 띄워도 전체 플로우 체험 가능 (Netlify 정적 배포용) |
+| **백엔드 연동** | `VITE_API_BASE_URL` 설정 | 실제 서버 호출. AI 미션 생성·식단 분석은 GPT-4o가 수행 |
+
+전환 지점은 `src/api/client.js`의 `isBackendEnabled` 한 곳이고, 각 api 모듈이 이 값을 보고 분기합니다.
+페이지 컴포넌트는 두 모드에서 동일하게 동작하므로, 백엔드 작업과 프론트 작업을 서로 막지 않고 진행할 수 있습니다.
+
+| 파일 | mock 모드 | 백엔드 연동 시 |
+|---|---|---|
+| `authApi.js` | localStorage 가짜 유저 테이블 | `POST /api/auth/signup`, `POST /api/auth/login` (JWT 발급) |
+| `groupApi.js` | 코드 형식만 검증, 항상 "나 혼자" 그룹 | `POST /api/groups`, `/join` — 실제 그룹원 목록 |
+| `missionApi.js` | 목표별 고정 풀에서 미션 3개 추출 | `POST /api/missions/today` — GPT-4o 개인 맞춤 생성 |
+| `mealApi.js` | 랜덤 달성/미달성 판정 | `POST /api/meals/{slot}/analyze` — GPT-4o Vision 분석 |
+| `challengeApi.js` | 리듀서가 로컬로 결과 계산 | `POST /api/challenges/end` — 서버가 순위·보상 정산 |
+| `profileApi.js` | (미사용) | 캐릭터·온보딩·상점·랭킹 |
 
 자세한 화면별 동작과 백엔드 전달 사항은 [`DEVLOG.md`](./DEVLOG.md), 전체 기획은 [`docs/PRD.md`](./docs/PRD.md)를 참고하세요.
 

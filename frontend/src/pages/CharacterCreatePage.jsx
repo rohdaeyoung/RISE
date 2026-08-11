@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MAX_NICKNAME_LENGTH, resolveHomeRoute, useAppDispatch, useAppState } from '../context/AppContext';
+import { createCharacter } from '../api/profileApi';
 import CharacterAvatar, { SPECIES_META } from '../components/CharacterAvatar';
 
 const SPECIES_OPTIONS = Object.keys(SPECIES_META);
@@ -17,9 +18,13 @@ export default function CharacterCreatePage() {
   // 캐릭터 선택은 회원가입 직후 1회 필수 단계 — 끝나면 그냥 일반 홈으로.
   function handleStart() {
     if (!nicknameValid) return;
-    dispatch({ type: 'SET_CHARACTER', species });
-    dispatch({ type: 'SET_NICKNAME', nickname });
-    navigate(resolveHomeRoute({ ...state, character: { ...state.character, species } }));
+    // 백엔드 모드에서는 캐릭터를 서버에 만들어 계정에 귀속시킨다(mock 모드에서는 no-op).
+    // 이미 만들어져 있어도(재진입) 로컬 진행은 막지 않는다.
+    createCharacter(species).finally(() => {
+      dispatch({ type: 'SET_CHARACTER', species });
+      dispatch({ type: 'SET_NICKNAME', nickname });
+      navigate(resolveHomeRoute({ ...state, character: { ...state.character, species } }));
+    });
   }
 
   return (

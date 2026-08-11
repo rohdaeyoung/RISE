@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { KeyRound } from 'lucide-react';
 import { joinGroup } from '../api/groupApi';
-import { useAppDispatch } from '../context/AppContext';
+import { useAppDispatch, useAppState } from '../context/AppContext';
 
 export default function GroupJoinPage() {
+  const state = useAppState();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [code, setCode] = useState('');
@@ -15,9 +16,17 @@ export default function GroupJoinPage() {
     if (!code.trim()) return;
     setLoading(true);
     setError('');
-    joinGroup({ code })
+    joinGroup({ code, myUserId: state.auth.userId })
       .then((group) => {
-        dispatch({ type: 'SET_GROUP', id: group.id, code: group.code, members: group.members });
+        dispatch({
+          type: 'SET_GROUP',
+          id: group.id,
+          code: group.code,
+          name: group.name,
+          members: group.members,
+          missionHour: group.missionHour,
+          missionMinute: group.missionMinute,
+        });
         // 팀원은 코드로 그룹에 참여한 다음에 목표/신체정보 온보딩을 진행함.
         navigate('/onboarding');
       })
