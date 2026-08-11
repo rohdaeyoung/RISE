@@ -95,8 +95,12 @@ export function expressionForRanking(state) {
 
 function reducer(state, action) {
   switch (action.type) {
+    // 로그인/회원가입 시 auth를 제외한 나머지는 초기화한다. 이걸 안 하면 로그아웃 없이 다른 계정으로
+    // 들어왔을 때 앞 사람의 그룹·캐릭터·코인이 그대로 남아 보인다(한 기기를 나눠 쓰는 경우).
+    // 백엔드 연동 시에는 로그인 직후 동기화가 서버 값으로 채우고, mock 모드에서도 계정이 바뀌면
+    // 처음부터 시작하는 게 맞다.
     case 'LOGIN_SUCCESS':
-      return { ...state, auth: { userId: action.userId, email: action.email } };
+      return { ...initialState, auth: { userId: action.userId, email: action.email } };
 
     case 'LOGOUT':
       return initialState;
