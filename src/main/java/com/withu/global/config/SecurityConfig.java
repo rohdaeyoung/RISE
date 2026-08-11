@@ -2,6 +2,7 @@ package com.withu.global.config;
 
 import com.withu.global.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -46,10 +47,17 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * 허용할 프론트 주소. 배포할 때 CORS_ALLOWED_ORIGINS에 실제 도메인을 넣어 좁힌다
+     * (예: {@code https://withu.vercel.app}). 기본값 "*"는 로컬 개발용이다.
+     */
+    @Value("${withu.cors.allowed-origins:*}")
+    private List<String> allowedOrigins;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOriginPatterns(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

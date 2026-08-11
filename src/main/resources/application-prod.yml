@@ -6,7 +6,9 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: validate
+      # Flyway 같은 마이그레이션 도구가 없어서 validate로 두면 빈 DB에 첫 배포할 때
+      # 테이블이 없어 무조건 실패한다. 스키마가 자리를 잡은 뒤 validate로 바꾸는 것이 안전하다.
+      ddl-auto: ${DDL_AUTO:update}
     show-sql: false
     open-in-view: false
 
