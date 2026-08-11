@@ -89,6 +89,24 @@ export function fetchMyGroup({ myUserId } = {}) {
   return api.get('/api/groups/me').then((data) => toGroup(data, myUserId));
 }
 
+// 그룹원 프로필 — 캐릭터 상태와 오늘의 식단/생활습관 미션 수행 결과 (PRD 6.12).
+// mock 모드에서는 서버가 없으므로 null을 주고, 화면은 로컬 상태만으로 표시한다.
+export function fetchGroupMember(userId) {
+  if (!isBackendEnabled) return Promise.resolve(null);
+  return api.get(`/api/groups/me/members/${userId}`).then((d) => ({
+    userId: String(d.userId),
+    nickname: d.nickname,
+    species: d.species,
+    expression: (d.expression || 'normal').toLowerCase(),
+    outfit: d.outfit,
+    achievementRate: d.achievementRate ?? 0,
+    points: d.points ?? 0,
+    photo: fileUrl(d.photo),
+    dietMissions: d.dietMissions || [],
+    lifestyleMissions: d.lifestyleMissions || [],
+  }));
+}
+
 // 방 이름 / 미션 시작 시간 변경 — 그룹원 누구나 바꿀 수 있다 (PRD 7. 그룹 시스템).
 export function updateGroupSettings({ name, missionHour, missionMinute }) {
   if (!isBackendEnabled) return Promise.resolve(null);
