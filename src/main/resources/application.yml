@@ -25,3 +25,8 @@ springdoc:
     path: /swagger-ui.html
   api-docs:
     path: /v3/api-docs
+
+withu:
+  demo:
+    # 심사용 데모 계정/그룹을 서버 기동 시 다시 만든다(7일차 상태). 배포 환경에서 true로 켠다.
+    seed: ${DEMO_SEED:false}
