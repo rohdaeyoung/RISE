@@ -25,6 +25,8 @@ public class SecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {
             "/api/auth/signup",
             "/api/auth/login",
+            // 사진은 <img> 태그로 직접 불러오기 때문에 토큰 헤더를 붙일 수 없어 공개로 둔다(주소는 임의의 UUID).
+            "/api/files/**",
             "/swagger-ui/**",
             "/v3/api-docs/**"
     };

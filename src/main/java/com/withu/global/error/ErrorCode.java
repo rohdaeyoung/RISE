@@ -41,6 +41,9 @@ public enum ErrorCode {
     // challenge
     CHALLENGE_NOT_FINISHED(HttpStatus.CONFLICT, "CHALLENGE_001", "아직 챌린지가 끝나지 않았어요"),
 
+    // file
+    FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "FILE_001", "파일을 찾을 수 없습니다"),
+
     // shop
     OUTFIT_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOP_001", "존재하지 않는 의상입니다"),
     OUTFIT_ALREADY_OWNED(HttpStatus.CONFLICT, "SHOP_002", "이미 보유한 의상입니다"),

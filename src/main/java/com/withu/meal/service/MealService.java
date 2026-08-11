@@ -2,7 +2,7 @@ package com.withu.meal.service;
 
 import com.withu.ai.MealVisionAiClient;
 import com.withu.ai.MealVisionAiClient.MealAnalysisResult;
-import com.withu.global.common.FileStorageService;
+import com.withu.file.service.FileStorageService;
 import com.withu.global.error.CustomException;
 import com.withu.global.error.ErrorCode;
 import com.withu.group.entity.GroupMember;
