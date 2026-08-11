@@ -3,6 +3,8 @@ package com.withu.ranking.service;
 import com.withu.auth.entity.User;
 import com.withu.auth.repository.UserRepository;
 import com.withu.character.entity.Character;
+import com.withu.character.entity.Expression;
+import com.withu.character.entity.ExpressionPolicy;
 import com.withu.character.repository.CharacterRepository;
 import com.withu.global.error.CustomException;
 import com.withu.global.error.ErrorCode;
@@ -59,13 +61,15 @@ public class RankingService {
             Long uid = memberRate.userId();
             User user = usersById.get(uid);
             Character character = charactersByUserId.get(uid);
+            // 표정은 저장된 값이 아니라 "지금" 달성률과 순위로 계산한다 — 미션을 완료하는 즉시 반영되어야 하므로.
+            Expression expression = ExpressionPolicy.fromRank(i + 1, rates.size(), memberRate.rate());
             result.add(new GroupRankingItem(
                     i + 1,
                     uid,
                     uid.equals(userId),
                     user != null ? user.getNickname() : null,
                     character != null ? character.getSpecies() : null,
-                    character != null ? character.getExpression().name() : null,
+                    expression.name(),
                     memberRate.rate()
             ));
         }

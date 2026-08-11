@@ -8,6 +8,7 @@ public enum ErrorCode {
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "COMMON_001", "요청 값이 올바르지 않습니다"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "COMMON_002", "인증이 필요합니다"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "COMMON_003", "권한이 없습니다"),
+    NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON_004", "요청한 경로를 찾을 수 없습니다"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_500", "서버 오류가 발생했습니다"),
 
     // auth
@@ -19,6 +20,7 @@ public enum ErrorCode {
     // character
     CHARACTER_ALREADY_EXISTS(HttpStatus.CONFLICT, "CHAR_001", "이미 캐릭터가 존재합니다"),
     CHARACTER_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAR_002", "캐릭터가 없습니다"),
+    INVALID_SPECIES(HttpStatus.BAD_REQUEST, "CHAR_003", "선택할 수 없는 캐릭터예요"),
 
     // group
     GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "GROUP_001", "그룹을 찾을 수 없습니다"),
@@ -43,6 +45,7 @@ public enum ErrorCode {
 
     // file
     FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "FILE_001", "파일을 찾을 수 없습니다"),
+    FILE_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "FILE_002", "사진 용량이 너무 커요. 10MB 이하로 올려주세요"),
 
     // shop
     OUTFIT_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOP_001", "존재하지 않는 의상입니다"),

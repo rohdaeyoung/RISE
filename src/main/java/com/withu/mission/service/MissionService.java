@@ -5,6 +5,7 @@ import com.withu.ai.MissionAiClient.GenerateMissionCommand;
 import com.withu.ai.MissionAiClient.GeneratedMission;
 import com.withu.auth.entity.User;
 import com.withu.auth.repository.UserRepository;
+import com.withu.character.service.ExpressionResolver;
 import com.withu.global.common.GameConstants;
 import com.withu.global.error.CustomException;
 import com.withu.global.error.ErrorCode;
@@ -42,6 +43,7 @@ public class MissionService {
     private final OnboardingRepository onboardingRepository;
     private final UserRepository userRepository;
     private final MissionAiClient missionAiClient;
+    private final ExpressionResolver expressionResolver;
 
     @Transactional
     public TodaySummary generateToday(Long userId) {
@@ -137,8 +139,14 @@ public class MissionService {
     public void rewardCoins(Long userId) {
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         user.addCoins(GameConstants.MISSION_COIN_REWARD);
-        groupMemberRepository.findByUserId(userId)
-                .ifPresent(member -> member.addCyclePoints(GameConstants.MISSION_COIN_REWARD));
+        groupMemberRepository.findByUserId(userId).ifPresent(member -> {
+            member.addCyclePoints(GameConstants.MISSION_COIN_REWARD);
+            // 달성률이 바뀌면 그룹원 전체의 순위가 흔들리므로 표정 캐시도 그룹 단위로 다시 계산한다.
+            List<Long> groupUserIds = groupMemberRepository.findByGroupId(member.getGroup().getId()).stream()
+                    .map(GroupMember::getUserId)
+                    .toList();
+            expressionResolver.refreshGroup(groupUserIds);
+        });
     }
 
     private int offsetFor(int index) {

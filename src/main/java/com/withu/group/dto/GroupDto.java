@@ -38,7 +38,13 @@ public class GroupDto {
             String nickname,
             String species,
             String expression,
-            String outfit
+            String outfit,
+            /** 오늘 미션 달성률(%) — 그룹 피드/그룹 내 순위 표시에 쓰인다. */
+            int achievementRate,
+            /** 이번 7일 사이클 동안 모은 점수 — 챌린지 종료 화면의 최종 순위 기준. */
+            int points,
+            /** 오늘 가장 최근에 인증한 사진 — 그룹 피드 카드에 표시. 인증 전이면 null. */
+            String photo
     ) {
     }
 

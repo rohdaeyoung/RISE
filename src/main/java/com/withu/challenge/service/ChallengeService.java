@@ -11,6 +11,8 @@ import com.withu.challenge.entity.UserBadge;
 import com.withu.challenge.repository.ChallengeResultRepository;
 import com.withu.challenge.repository.UserBadgeRepository;
 import com.withu.character.entity.Character;
+import com.withu.character.entity.Expression;
+import com.withu.character.entity.ExpressionPolicy;
 import com.withu.character.repository.CharacterRepository;
 import com.withu.global.error.CustomException;
 import com.withu.global.error.ErrorCode;
@@ -107,8 +109,14 @@ public class ChallengeService {
         List<Long> userIds = members.stream().map(GroupMember::getUserId).toList();
         Map<Long, Integer> rateByUser = achievementRatesOf(userIds, from, to);
 
+        // 점수가 같으면 7일 달성률이 높은 사람이 위로 간다. 동점은 흔한 상황이라(특히 사이클 초반)
+        // 정렬이 흔들리면 달성률 100%인 사람이 67%인 사람보다 아래로 가고 우승 뱃지까지 뒤바뀐다.
+        // 마지막에 userId로 한 번 더 갈라 같은 입력이면 항상 같은 순위가 나오도록 한다.
         List<GroupMember> ranked = members.stream()
-                .sorted(Comparator.comparingInt(GroupMember::getCyclePoints).reversed())
+                .sorted(Comparator.comparingInt(GroupMember::getCyclePoints).reversed()
+                        .thenComparing(Comparator.comparingInt(
+                                (GroupMember m) -> rateByUser.getOrDefault(m.getUserId(), 0)).reversed())
+                        .thenComparing(GroupMember::getUserId))
                 .toList();
 
         for (int i = 0; i < ranked.size(); i++) {
@@ -166,12 +174,15 @@ public class ChallengeService {
             User user = usersById.get(result.getUserId());
             Character character = charactersByUserId.get(result.getUserId());
             boolean me = result.getUserId().equals(userId);
+            // 결과 화면 표정은 7일 전체 달성률과 최종 순위로 계산한다 (오늘 하루 상태가 아니라 사이클 성적 기준).
+            Expression expression = ExpressionPolicy.fromRank(
+                    result.getFinalRank(), result.getTotalParticipants(), result.getAchievementRate());
             ranking.add(new ParticipantResult(
                     result.getUserId(),
                     me,
                     labelOf(user, me),
                     character != null ? character.getSpecies() : null,
-                    character != null ? character.getExpression().name() : null,
+                    expression.name(),
                     character != null ? character.getOutfit() : null,
                     result.getFinalRank(),
                     result.getPoints(),
