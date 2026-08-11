@@ -29,6 +29,19 @@ export function fetchMe() {
   return api.get('/api/auth/me');
 }
 
+// 다른 기기·새 브라우저에서 로그인하면 로컬엔 아무것도 없으므로 서버에서 온보딩을 되찾아온다.
+// 서버는 대문자 enum(DIET/MALE)을 주고 프론트는 소문자를 쓰므로 여기서 맞춰준다.
+export function fetchOnboarding() {
+  if (!isBackendEnabled) return Promise.resolve(null);
+  return api.get('/api/onboarding/me').then((o) => ({
+    goal: o.goal?.toLowerCase(),
+    gender: o.gender?.toLowerCase(),
+    age: o.age,
+    height: o.height,
+    weight: o.weight,
+  }));
+}
+
 // 닉네임은 랭킹·그룹 피드에 표시되는 이름이라 서버에 저장해야 다른 그룹원에게도 보인다.
 export function saveNickname(nickname) {
   if (!isBackendEnabled) return Promise.resolve(null);

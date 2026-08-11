@@ -6,7 +6,7 @@ import {
   generateDailyMissions,
 } from '../api/missionApi';
 import { isBackendEnabled } from '../api/client';
-import { fetchCharacter, fetchMe } from '../api/profileApi';
+import { fetchCharacter, fetchMe, fetchOnboarding } from '../api/profileApi';
 import { fetchMyGroup } from '../api/groupApi';
 
 const STORAGE_KEY = 'withu_state';
@@ -357,6 +357,16 @@ function reducer(state, action) {
           : state.character,
       };
 
+    // 서버에 저장된 그룹·온보딩을 로컬에 복원한다. 다른 기기나 새 브라우저에서 로그인하면
+    // 로컬에는 아무것도 없어서, 이게 없으면 이미 그룹에 속해 있는데도 "그룹 만들기" 화면이 뜬다.
+    // 네트워크 오류와 구분이 안 되므로 여기서는 채우기만 하고 지우지는 않는다.
+    case 'RESTORE_SESSION': {
+      const next = { ...state };
+      if (action.group) next.group = { ...(state.group ?? {}), ...action.group };
+      if (action.onboarding?.goal) next.onboarding = { ...state.onboarding, ...action.onboarding };
+      return next;
+    }
+
     // 서버에서 받은 그룹원 목록과 진행일을 함께 반영한다. 진행일(currentDay)은 서버가 계산한 값을
     // 그대로 써야 그룹원 모두가 같은 날짜를 보고, 7일차 종료 시트도 동시에 뜬다.
     case 'SET_GROUP_MEMBERS':
@@ -401,14 +411,21 @@ function useBackendSync(state, dispatch) {
         dispatch({ type: 'SET_ACCOUNT', coins: me?.coins, nickname: me?.nickname, character });
       }
 
-      if (inGroup) {
-        const group = await fetchMyGroup({ myUserId });
-        if (group) {
+      // 로컬에 그룹이 없어도 항상 물어본다 — 서버가 소속의 원본이라, 로컬 상태를 조건으로 걸면
+      // 새 기기에서 로그인했을 때 이미 속한 그룹을 영영 못 찾는다. (403이면 정말 그룹이 없는 것)
+      const group = await fetchMyGroup({ myUserId }).catch(() => null);
+      if (group) {
+        let goalKnown = hasGoal;
+        if (!inGroup) {
+          const onboarding = await fetchOnboarding().catch(() => null);
+          goalKnown = goalKnown || Boolean(onboarding?.goal);
+          dispatch({ type: 'RESTORE_SESSION', group, onboarding });
+        } else {
           dispatch({ type: 'SET_GROUP_MEMBERS', members: group.members, currentDay: group.currentDay });
         }
 
         // 온보딩을 마친 뒤에만 미션이 생성될 수 있다(AI가 목표/신체정보를 입력으로 받음).
-        if (hasGoal) {
+        if (goalKnown) {
           const missions = await fetchOrCreateTodayMissions();
           dispatch({ type: 'SET_MISSIONS', missions });
         }
