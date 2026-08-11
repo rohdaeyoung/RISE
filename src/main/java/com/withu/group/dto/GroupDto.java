@@ -48,6 +48,34 @@ public class GroupDto {
     ) {
     }
 
+    /**
+     * 그룹원 프로필에 보여줄 오늘의 미션 한 건 (PRD 6.12).
+     * 미션 제목과 달성 여부까지만 담고, 신체 정보나 식단 상세 분석은 담지 않는다 (PRD 12).
+     */
+    public record MemberMission(
+            String type,
+            String title,
+            boolean done
+    ) {
+    }
+
+    /**
+     * 그룹원 프로필 화면 전체 (PRD 6.12 — 캐릭터 현재 상태, 식단/건강 미션 수행 결과).
+     */
+    public record MemberDetail(
+            Long userId,
+            String nickname,
+            String species,
+            String expression,
+            String outfit,
+            int achievementRate,
+            int points,
+            String photo,
+            List<MemberMission> dietMissions,
+            List<MemberMission> lifestyleMissions
+    ) {
+    }
+
     public record Response(
             Long id,
             String code,

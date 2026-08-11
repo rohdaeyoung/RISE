@@ -14,6 +14,9 @@ import com.withu.group.entity.GroupMember;
 import com.withu.group.repository.GroupMemberRepository;
 import com.withu.group.repository.GroupRepository;
 import com.withu.meal.repository.MealRepository;
+import com.withu.mission.entity.Mission;
+import com.withu.mission.entity.MissionType;
+import com.withu.mission.repository.MissionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +42,7 @@ public class GroupService {
     private final GroupCodeGenerator codeGenerator;
     private final ExpressionResolver expressionResolver;
     private final MealRepository mealRepository;
+    private final MissionRepository missionRepository;
 
     @Transactional
     public Response create(Long userId, CreateRequest request) {
@@ -102,6 +106,46 @@ public class GroupService {
         Group group = getGroupOfUser(userId);
         group.changeMissionTime(request.missionHour(), request.missionMinute());
         return toResponse(group);
+    }
+
+    /**
+     * 그룹원 프로필 (PRD 6.12). 같은 그룹에 속한 사람만 볼 수 있고, 신체 정보·식단 상세 분석은
+     * 응답에 담지 않는다 (PRD 12. 개인 신체 정보는 그룹원에게 공개하지 않음).
+     */
+    public MemberDetail getMember(Long viewerId, Long targetUserId) {
+        Group group = getGroupOfUser(viewerId);
+        if (!groupMemberRepository.existsByGroupIdAndUserId(group.getId(), targetUserId)) {
+            throw new CustomException(ErrorCode.NOT_GROUP_MEMBER);
+        }
+        GroupMember target = groupMemberRepository.findByGroupIdAndUserId(group.getId(), targetUserId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_GROUP_MEMBER));
+
+        List<Long> ids = List.of(targetUserId);
+        User user = userRepository.findById(targetUserId).orElse(null);
+        Character character = characterRepository.findByUserIdIn(ids).stream().findFirst().orElse(null);
+        Expression expression = expressionResolver.todayExpressions(ids)
+                .getOrDefault(targetUserId, Expression.NORMAL);
+
+        List<Mission> missions = missionRepository.findByUserIdAndMissionDateOrderByIdAsc(targetUserId, LocalDate.now());
+
+        return new MemberDetail(
+                targetUserId,
+                user != null ? user.getNickname() : null,
+                character != null ? character.getSpecies() : null,
+                expression.name(),
+                character != null ? character.getOutfit() : null,
+                expressionResolver.todayRates(ids).getOrDefault(targetUserId, 0),
+                target.getCyclePoints(),
+                todayPhotosOf(ids).get(targetUserId),
+                missionsOf(missions, MissionType.DIET),
+                missionsOf(missions, MissionType.LIFESTYLE));
+    }
+
+    private List<MemberMission> missionsOf(List<Mission> missions, MissionType type) {
+        return missions.stream()
+                .filter(m -> m.getType() == type)
+                .map(m -> new MemberMission(m.getType().name(), m.getTitle(), m.isDone()))
+                .toList();
     }
 
     /** 그룹원별 오늘의 최신 인증 사진 (없으면 항목 자체가 없음). */

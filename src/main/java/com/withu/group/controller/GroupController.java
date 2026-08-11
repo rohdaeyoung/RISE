@@ -32,6 +32,12 @@ public class GroupController {
         return ApiResponse.success(groupService.getMine(SecurityUtil.getCurrentUserId()));
     }
 
+    /** 그룹 피드에서 사진을 눌렀을 때 열리는 그룹원 프로필 (PRD 6.12). */
+    @GetMapping("/me/members/{userId}")
+    public ApiResponse<MemberDetail> getMember(@PathVariable Long userId) {
+        return ApiResponse.success(groupService.getMember(SecurityUtil.getCurrentUserId(), userId));
+    }
+
     @DeleteMapping("/me")
     public ApiResponse<Void> leave() {
         groupService.leave(SecurityUtil.getCurrentUserId());

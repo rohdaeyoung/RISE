@@ -39,6 +39,11 @@ public class MissionHistoryAnalyzer {
 
     /** 기본 미션 개수 — 식단 2 + 생활습관 1 (PRD 5. 하루 3~4개). */
     static final int DEFAULT_MISSION_COUNT = 3;
+    /**
+     * 난이도 상승일 때 주는 미션 개수. PRD가 정한 범위의 위쪽 끝(4개)이다.
+     * 난이도 "상승"은 미션 하나하나를 어렵게 만드는 것과 개수를 늘리는 것 두 가지로 나타난다.
+     */
+    static final int INCREASED_MISSION_COUNT = 4;
     /** 3일 연속 실패하면 부담을 줄이기 위해 미션을 1개만 준다. */
     static final int REDUCED_MISSION_COUNT = 1;
     private static final int CONSECUTIVE_FAILURE_LIMIT = 3;
@@ -59,9 +64,7 @@ public class MissionHistoryAnalyzer {
         int consecutiveFailures = countTrailingFailures(ratesByDate);
 
         Difficulty difficulty = difficultyFor(previousRate);
-        int missionCount = consecutiveFailures >= CONSECUTIVE_FAILURE_LIMIT
-                ? REDUCED_MISSION_COUNT
-                : DEFAULT_MISSION_COUNT;
+        int missionCount = missionCountFor(difficulty, consecutiveFailures);
 
         return new MissionPlan(
                 previousRate == null ? 0 : previousRate,
@@ -97,6 +100,17 @@ public class MissionHistoryAnalyzer {
             count++;
         }
         return count;
+    }
+
+    /**
+     * 연속 실패로 인한 축소가 난이도 상승보다 우선한다. 3일 연속 실패한 사람은 정의상 직전 달성률도
+     * 50% 미만이라 두 조건이 동시에 걸릴 일은 없지만, 순서를 명시해 의도를 남긴다.
+     */
+    private int missionCountFor(Difficulty difficulty, int consecutiveFailures) {
+        if (consecutiveFailures >= CONSECUTIVE_FAILURE_LIMIT) {
+            return REDUCED_MISSION_COUNT;
+        }
+        return difficulty == Difficulty.UP ? INCREASED_MISSION_COUNT : DEFAULT_MISSION_COUNT;
     }
 
     /** 기록이 아예 없는 첫날은 기준이 없으므로 유지(KEEP)로 시작한다. */

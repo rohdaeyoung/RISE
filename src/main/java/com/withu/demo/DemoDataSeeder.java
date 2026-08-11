@@ -26,6 +26,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,9 +50,12 @@ import java.util.UUID;
  * 그런데 방금 배포한 서버는 그룹이 Day 1이라, 7일 챌린지 결과 화면처럼 "시간이 지나야 보이는"
  * 기능을 볼 방법이 없다. 그래서 <b>이미 6일을 함께 달려온 4인 그룹</b>을 미리 만들어 둔다.
  *
- * <p>서버가 뜰 때마다 데모 계정 데이터를 지우고 다시 만든다. 누군가 "계속하기"를 눌러
- * Day 1로 돌아가더라도 재배포/재시작하면 심사용 상태가 원래대로 복구된다.
- * 데모 계정 외의 실제 가입자 데이터는 건드리지 않는다.
+ * <p>서버가 뜰 때, 그리고 <b>날짜가 바뀔 때마다</b> 데모 계정 데이터를 지우고 다시 만든다.
+ * 기동 시에만 만들면 배포일과 심사일이 다를 때(8/19 배포 → 8/21 심사) 문제가 생긴다. 동료 계정은
+ * 아무도 앱을 켜지 않으므로 그날 미션이 전부 미완료로 남고, 그룹 피드가 전원 0%·슬픈 표정에
+ * 사진 한 장 없는 상태가 된다. 누군가 "계속하기"를 눌러 Day 1로 돌아간 경우도 함께 복구된다.
+ *
+ * <p>데모 계정 외의 실제 가입자 데이터는 어떤 경로로도 건드리지 않는다.
  */
 @Slf4j
 @Component
@@ -97,9 +101,32 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
 
+    /** 마지막으로 데모 데이터를 만든 날. 날짜가 바뀌면 다시 만든다. */
+    private volatile LocalDate seededOn;
+
+    // seed()를 private으로 두고 진입점 두 곳에 @Transactional을 건다. 같은 빈 안에서 seed()를
+    // 호출하면 프록시를 거치지 않아 트랜잭션이 걸리지 않기 때문이다.
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        seed();
+    }
+
+    /**
+     * 10분마다 날짜가 넘어갔는지 확인한다. 자정 정각 cron 하나만 두면 그 시각에 서버가 재시작 중이거나
+     * 잠깐 죽어 있으면 그날 하루가 통째로 비어버리므로, 놓쳐도 곧 따라잡는 폴링 방식을 쓴다.
+     */
+    @Scheduled(fixedDelay = 600_000, initialDelay = 600_000)
+    @Transactional
+    public void reseedIfDateChanged() {
+        if (LocalDate.now().equals(seededOn)) {
+            return;
+        }
+        log.info("날짜가 바뀌어 심사용 데모 데이터를 다시 만듭니다.");
+        seed();
+    }
+
+    private void seed() {
         clearPreviousDemoData();
 
         // 그룹은 방장(host)이 있어야 만들 수 있으므로 계정을 먼저 만든다.
@@ -124,6 +151,7 @@ public class DemoDataSeeder implements ApplicationRunner {
             seedMember(MEMBERS.get(i), users.get(i), group, today);
         }
 
+        seededOn = today;
         log.info("심사용 데모 데이터를 생성했습니다. 계정={} / 그룹코드={} / {}일차",
                 DEMO_EMAIL, DEMO_GROUP_CODE, CYCLE_DAYS);
     }
