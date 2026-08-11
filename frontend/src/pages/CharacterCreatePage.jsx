@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MAX_NICKNAME_LENGTH, resolveHomeRoute, useAppDispatch, useAppState } from '../context/AppContext';
-import { createCharacter } from '../api/profileApi';
+import { createCharacter, saveNickname } from '../api/profileApi';
 import CharacterAvatar, { SPECIES_META } from '../components/CharacterAvatar';
 
 const SPECIES_OPTIONS = Object.keys(SPECIES_META);
@@ -20,7 +20,8 @@ export default function CharacterCreatePage() {
     if (!nicknameValid) return;
     // 백엔드 모드에서는 캐릭터를 서버에 만들어 계정에 귀속시킨다(mock 모드에서는 no-op).
     // 이미 만들어져 있어도(재진입) 로컬 진행은 막지 않는다.
-    createCharacter(species).finally(() => {
+    // 닉네임도 서버에 올려야 그룹 피드·랭킹에서 다른 사람에게 이름이 보인다(mock 모드에서는 no-op).
+    Promise.all([createCharacter(species), saveNickname(nickname).catch(() => {})]).finally(() => {
       dispatch({ type: 'SET_CHARACTER', species });
       dispatch({ type: 'SET_NICKNAME', nickname });
       navigate(resolveHomeRoute({ ...state, character: { ...state.character, species } }));

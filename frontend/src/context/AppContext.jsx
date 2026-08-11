@@ -346,6 +346,7 @@ function reducer(state, action) {
       return {
         ...state,
         coins: action.coins ?? state.coins,
+        nickname: action.nickname ?? state.nickname,
         challengeCoins: action.challengeCoins ?? state.challengeCoins,
         character: action.character
           ? { ...state.character, ...action.character, expression: state.character.expression }
@@ -393,7 +394,7 @@ function useBackendSync(state, dispatch) {
     try {
       const [me, character] = await Promise.all([fetchMe(), fetchCharacter().catch(() => null)]);
       if (me || character) {
-        dispatch({ type: 'SET_ACCOUNT', coins: me?.coins, character });
+        dispatch({ type: 'SET_ACCOUNT', coins: me?.coins, nickname: me?.nickname, character });
       }
 
       if (inGroup) {

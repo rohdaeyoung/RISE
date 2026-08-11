@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, ChevronRight, Frown } from 'lucide-react';
 import { MAX_NICKNAME_LENGTH, useAppDispatch, useAppState } from '../context/AppContext';
+import { saveNickname } from '../api/profileApi';
 
 export default function SettingsPage() {
   const state = useAppState();
@@ -22,6 +23,7 @@ export default function SettingsPage() {
   }
 
   function handleSaveNickname() {
+    saveNickname(nickname).catch(() => {});
     dispatch({ type: 'SET_NICKNAME', nickname });
     setNicknameSaved(true);
     setTimeout(() => setNicknameSaved(false), 1200);

@@ -29,6 +29,12 @@ export function fetchMe() {
   return api.get('/api/auth/me');
 }
 
+// 닉네임은 랭킹·그룹 피드에 표시되는 이름이라 서버에 저장해야 다른 그룹원에게도 보인다.
+export function saveNickname(nickname) {
+  if (!isBackendEnabled) return Promise.resolve(null);
+  return api.patch('/api/auth/me/nickname', { nickname: nickname.trim() });
+}
+
 // 캐릭터의 종/의상/보유 의상은 서버가 원본이다. 이걸 안 받아오면 상점에서 산 의상이
 // 새로고침하거나 다른 기기에서 열었을 때 없어진 것처럼 보인다.
 export function fetchCharacter() {
