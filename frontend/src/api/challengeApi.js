@@ -2,7 +2,7 @@
 // 백엔드가 사이클 점수 기준으로 최종 순위를 매기고 순위별 보상(뱃지·코인·점수)을 지급한다.
 // mock 모드에서는 AppContext의 END_CHALLENGE / CONTINUE_CHALLENGE 리듀서가 로컬로 계산한다.
 
-import { api, isBackendEnabled } from './client';
+import { api, fileUrl, isBackendEnabled } from './client';
 
 // 백엔드 결과를 ChallengeSummarySheet가 쓰는 모양으로 변환.
 function toSummary(data) {
@@ -30,7 +30,7 @@ function toSummary(data) {
     mealPhotos: (data.mealPhotos || []).map((m) => ({
       mealKey: m.mealKey,
       mealLabel: m.mealLabel,
-      photo: m.photoUrl,
+      photo: fileUrl(m.photoUrl),
     })),
   };
 }

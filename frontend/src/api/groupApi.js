@@ -2,7 +2,7 @@
 // 백엔드 연동 시 POST /api/groups, POST /api/groups/join 을 호출해 실제 그룹원 목록을 받아오고,
 // mock 모드에서는 기기 간 데이터가 연결되지 않아 항상 "나 혼자"인 그룹만 만들어진다.
 
-import { api, isBackendEnabled } from './client';
+import { api, fileUrl, isBackendEnabled } from './client';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;
@@ -30,6 +30,8 @@ function toMembers(data, myUserId) {
       outfit: m.outfit,
       achievementRate: m.achievementRate ?? 0,
       points: m.points ?? 0,
+      // 그룹원의 오늘 인증 사진 — 백엔드가 /api/files/{id} 경로만 주므로 서버 주소를 붙여준다.
+      photo: fileUrl(m.photo),
     }));
 }
 

@@ -25,6 +25,15 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// 백엔드는 사진을 "/api/files/{id}" 같은 상대 경로로 내려준다. 프론트는 다른 주소(개발 시 5173,
+// 배포 시 정적 호스팅)에서 돌아가므로 그대로 <img src>에 넣으면 프론트 서버를 찾아가 깨진다.
+// data:/http: 로 시작하는 값(업로드 직후 미리보기 등)은 이미 완전한 주소라 그대로 둔다.
+export function fileUrl(path) {
+  if (!path) return null;
+  if (/^(data:|blob:|https?:)/.test(path)) return path;
+  return `${BASE_URL}${path}`;
+}
+
 // 백엔드는 모든 응답을 { success, data, error } 로 감싸므로 여기서 벗겨내고,
 // 실패 시에는 mock이 던지던 것과 같은 모양({ field, message })으로 맞춰 던진다.
 async function request(path, { method = 'GET', body, isForm = false } = {}) {

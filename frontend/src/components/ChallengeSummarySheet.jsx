@@ -93,7 +93,9 @@ export default function ChallengeSummarySheet({ summary }) {
                 </span>
                 <CharacterAvatar species={p.species} expression={p.expression} size="md" breathing={false} />
                 <p className="text-xs font-semibold text-center text-ink">{p.label}</p>
-                <p className="text-xs font-bold text-ink">{p.points}점</p>
+                <p className="text-sm font-bold text-ink">{p.points}점</p>
+                {/* 점수만 보면 서로 얼마나 해냈는지 감이 안 와서, 7일 전체 달성률을 함께 보여준다. */}
+                <p className="text-[11px] text-sub">7일 달성률 {p.rate ?? 0}%</p>
               </div>
             ) : (
               <div

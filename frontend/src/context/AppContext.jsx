@@ -346,10 +346,14 @@ function reducer(state, action) {
         challengeCoins: action.challengeCoins ?? state.challengeCoins,
       };
 
+    // 서버에서 받은 그룹원 목록과 진행일을 함께 반영한다. 진행일(currentDay)은 서버가 계산한 값을
+    // 그대로 써야 그룹원 모두가 같은 날짜를 보고, 7일차 종료 시트도 동시에 뜬다.
     case 'SET_GROUP_MEMBERS':
       return {
         ...state,
-        group: state.group ? { ...state.group, members: action.members } : state.group,
+        group: state.group
+          ? { ...state.group, members: action.members, currentDay: action.currentDay ?? state.group.currentDay }
+          : state.group,
       };
 
     // 서버가 정산한 챌린지 결과를 그대로 결과 화면에 넘긴다.
@@ -386,7 +390,9 @@ function useBackendSync(state, dispatch) {
 
       if (inGroup) {
         const group = await fetchMyGroup({ myUserId });
-        if (group) dispatch({ type: 'SET_GROUP_MEMBERS', members: group.members });
+        if (group) {
+          dispatch({ type: 'SET_GROUP_MEMBERS', members: group.members, currentDay: group.currentDay });
+        }
 
         // 온보딩을 마친 뒤에만 미션이 생성될 수 있다(AI가 목표/신체정보를 입력으로 받음).
         if (hasGoal) {
@@ -519,8 +525,11 @@ export function memberColorIndex(memberId, members = []) {
 }
 
 // 7일 챌린지 진행일(1~7). 실제 경과 시간 기준으로 계산 — 임의로 넘길 수 없음.
+// 백엔드 연동 시에는 서버가 계산한 currentDay를 그대로 쓴다. 진행일은 그룹원 모두에게 같아야 하는
+// 값이라 기기별 시계로 따로 계산하면 사람마다 다른 날짜가 보일 수 있기 때문.
 export function dayIndexOf(group) {
   if (!group) return 0;
+  if (group.currentDay != null) return group.currentDay;
   return Math.min(CHALLENGE_LENGTH_DAYS, Math.floor((Date.now() - group.startedAt) / DAY_MS) + 1);
 }
 
