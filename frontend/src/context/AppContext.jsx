@@ -6,7 +6,7 @@ import {
   generateDailyMissions,
 } from '../api/missionApi';
 import { isBackendEnabled } from '../api/client';
-import { fetchMe } from '../api/profileApi';
+import { fetchCharacter, fetchMe } from '../api/profileApi';
 import { fetchMyGroup } from '../api/groupApi';
 
 const STORAGE_KEY = 'withu_state';
@@ -339,11 +339,17 @@ function reducer(state, action) {
       };
     }
 
+    // 코인과 캐릭터(종/의상/보유 의상)의 원본은 서버다. 특히 보유 의상을 안 받아오면
+    // 상점에서 산 의상이 새로고침 후 사라진 것처럼 보인다. 표정만은 예외로 로컬 계산값을 유지한다
+    // (달성률이 바뀌는 즉시 반영돼야 하는데 서버 값은 다음 동기화까지 한 박자 늦기 때문).
     case 'SET_ACCOUNT':
       return {
         ...state,
         coins: action.coins ?? state.coins,
         challengeCoins: action.challengeCoins ?? state.challengeCoins,
+        character: action.character
+          ? { ...state.character, ...action.character, expression: state.character.expression }
+          : state.character,
       };
 
     // 서버에서 받은 그룹원 목록과 진행일을 함께 반영한다. 진행일(currentDay)은 서버가 계산한 값을
@@ -385,8 +391,10 @@ function useBackendSync(state, dispatch) {
   const sync = useCallback(async () => {
     if (!isBackendEnabled || !loggedIn) return;
     try {
-      const me = await fetchMe();
-      if (me) dispatch({ type: 'SET_ACCOUNT', coins: me.coins });
+      const [me, character] = await Promise.all([fetchMe(), fetchCharacter().catch(() => null)]);
+      if (me || character) {
+        dispatch({ type: 'SET_ACCOUNT', coins: me?.coins, character });
+      }
 
       if (inGroup) {
         const group = await fetchMyGroup({ myUserId });

@@ -29,6 +29,17 @@ export function fetchMe() {
   return api.get('/api/auth/me');
 }
 
+// 캐릭터의 종/의상/보유 의상은 서버가 원본이다. 이걸 안 받아오면 상점에서 산 의상이
+// 새로고침하거나 다른 기기에서 열었을 때 없어진 것처럼 보인다.
+export function fetchCharacter() {
+  if (!isBackendEnabled) return Promise.resolve(null);
+  return api.get('/api/characters/me').then((c) => ({
+    species: c.species,
+    outfit: c.outfit,
+    ownedOutfits: c.ownedOutfits,
+  }));
+}
+
 export function buyOutfit(outfitId) {
   if (!isBackendEnabled) return Promise.resolve(null);
   return api.post(`/api/shop/outfits/${outfitId}/buy`);
