@@ -19,6 +19,8 @@ import com.withu.mission.repository.MissionRepository;
 import com.withu.onboarding.entity.Onboarding;
 import com.withu.onboarding.repository.OnboardingRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -68,11 +71,18 @@ public class MissionService {
                     .userId(userId)
                     .groupId(group.getId())
                     .missionDate(today)
+                    .seq(i)
                     .type(MissionType.valueOf(g.type().name()))
                     .title(g.title())
                     .unlockTime(unlockTime)
                     .build();
             missionRepository.save(mission);
+        }
+        try {
+            missionRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            // 동시에 들어온 다른 요청이 이미 오늘 세트를 만든 경우 — 먼저 만들어진 쪽을 그대로 쓴다.
+            log.info("오늘 미션 세트가 이미 생성되어 있어 기존 세트를 사용합니다. userId={}", userId);
         }
         return getToday(userId);
     }
