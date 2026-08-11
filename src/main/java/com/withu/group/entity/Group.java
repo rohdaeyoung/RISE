@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * 이후에는 그룹원 누구나 변경 가능하다 (PRD 7. 그룹 시스템).
  */
 @Entity
-@Table(name = "groups")
+@Table(name = "study_groups")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Group extends BaseTimeEntity {

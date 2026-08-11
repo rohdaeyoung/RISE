@@ -3,10 +3,22 @@ spring:
     name: withu-server
   profiles:
     active: local
+  config:
+    # 로컬 개발 시 프로젝트 루트의 .env(gitignore 처리됨)를 읽어 OPENAI_API_KEY 등을 주입한다.
+    import: optional:file:.env[.properties]
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 jwt:
   secret: ${JWT_SECRET:local-dev-secret-key-change-me-please-32bytes-min}
   access-token-validity-ms: ${JWT_ACCESS_VALIDITY_MS:86400000}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  mission-model: ${OPENAI_MISSION_MODEL:gpt-4o-mini}
+  vision-model: ${OPENAI_VISION_MODEL:gpt-4o-mini}
 
 springdoc:
   swagger-ui:
