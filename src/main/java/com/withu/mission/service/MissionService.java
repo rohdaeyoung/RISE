@@ -122,10 +122,13 @@ public class MissionService {
         return true;
     }
 
+    /** 미션 1개 완료 보상 — 누적 코인과 이번 챌린지 사이클 점수에 함께 반영한다. */
     @Transactional
     public void rewardCoins(Long userId) {
         User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         user.addCoins(GameConstants.MISSION_COIN_REWARD);
+        groupMemberRepository.findByUserId(userId)
+                .ifPresent(member -> member.addCyclePoints(GameConstants.MISSION_COIN_REWARD));
     }
 
     private int offsetFor(int index) {

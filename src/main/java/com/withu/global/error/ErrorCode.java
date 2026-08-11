@@ -38,6 +38,9 @@ public enum ErrorCode {
     // meal
     MEAL_ALREADY_LOGGED(HttpStatus.CONFLICT, "MEAL_001", "이미 인증한 식단입니다"),
 
+    // challenge
+    CHALLENGE_NOT_FINISHED(HttpStatus.CONFLICT, "CHALLENGE_001", "아직 챌린지가 끝나지 않았어요"),
+
     // shop
     OUTFIT_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOP_001", "존재하지 않는 의상입니다"),
     OUTFIT_ALREADY_OWNED(HttpStatus.CONFLICT, "SHOP_002", "이미 보유한 의상입니다"),

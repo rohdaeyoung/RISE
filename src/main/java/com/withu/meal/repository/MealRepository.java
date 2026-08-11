@@ -15,4 +15,7 @@ public interface MealRepository extends JpaRepository<Meal, Long> {
     Optional<Meal> findByUserIdAndMealDateAndSlot(Long userId, LocalDate mealDate, MealSlot slot);
 
     boolean existsByUserIdAndMealDateAndSlot(Long userId, LocalDate mealDate, MealSlot slot);
+
+    /** 챌린지 사이클 동안 인증한 식단 사진 — 결과 화면의 사진 모아보기에 사용. */
+    List<Meal> findByUserIdAndMealDateBetweenOrderByIdAsc(Long userId, LocalDate from, LocalDate to);
 }

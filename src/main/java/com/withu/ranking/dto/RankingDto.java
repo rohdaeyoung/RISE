@@ -19,7 +19,7 @@ public class RankingDto {
             int rank,
             Long userId,
             String nickname,
-            int coins
+            int points
     ) {
     }
 

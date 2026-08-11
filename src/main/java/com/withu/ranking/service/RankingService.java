@@ -72,13 +72,13 @@ public class RankingService {
         return new GroupRankingResponse(result);
     }
 
-    /** 누적 코인 기준 전체 사용자 랭킹 (PRD 10. 랭킹 시스템 — 전체 랭킹). */
+    /** 누적 점수 기준 전체 사용자 랭킹 (PRD 10. 랭킹 시스템 — 전체 랭킹). */
     public GlobalRankingResponse getGlobalRanking() {
-        List<User> topUsers = userRepository.findTop100ByOrderByCoinsDesc();
+        List<User> topUsers = userRepository.findTop100ByOrderByPointsDesc();
         List<GlobalRankingItem> result = new java.util.ArrayList<>();
         for (int i = 0; i < topUsers.size(); i++) {
             User user = topUsers.get(i);
-            result.add(new GlobalRankingItem(i + 1, user.getId(), user.getNickname(), user.getCoins()));
+            result.add(new GlobalRankingItem(i + 1, user.getId(), user.getNickname(), user.getPoints()));
         }
         return new GlobalRankingResponse(result);
     }

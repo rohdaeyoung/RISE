@@ -18,4 +18,7 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
             Long userId, LocalDate missionDate, MissionType type);
 
     boolean existsByUserIdAndMissionDate(Long userId, LocalDate missionDate);
+
+    /** 챌린지 사이클 전체(시작일~종료일)의 미션 — 최종 달성률 계산에 사용. */
+    List<Mission> findByUserIdInAndMissionDateBetween(List<Long> userIds, LocalDate from, LocalDate to);
 }

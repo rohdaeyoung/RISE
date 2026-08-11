@@ -36,7 +36,7 @@ public class GroupService {
 
     @Transactional
     public Response create(Long userId, CreateRequest request) {
-        if (groupMemberRepository.findByUserId(userId).isPresent()) {
+        if (groupMemberRepository.existsByUserId(userId)) {
             throw new CustomException(ErrorCode.GROUP_ALREADY_JOINED);
         }
         Group group = Group.builder()
@@ -57,7 +57,7 @@ public class GroupService {
         if (code.length() != 6) {
             throw new CustomException(ErrorCode.INVALID_GROUP_CODE);
         }
-        if (groupMemberRepository.findByUserId(userId).isPresent()) {
+        if (groupMemberRepository.existsByUserId(userId)) {
             throw new CustomException(ErrorCode.GROUP_ALREADY_JOINED);
         }
         Group group = groupRepository.findByCode(code)

@@ -3,8 +3,8 @@ package com.withu.shop.dto;
 import java.util.List;
 
 /**
- * 의상 카탈로그. 프론트 assets/shop/*.png(formal-set, pajama-set, picnic-set, sport-set)와
- * 대응하며, everyday는 기본 무료 보유 의상 (DEVLOG.md 참고). 가격은 임시값 — 기획 확정 시 조정.
+ * 의상 카탈로그. id와 가격은 프론트 ShopPage.jsx의 OUTFIT_SETS와 반드시 일치해야 한다
+ * (프론트가 이미 확정된 기준). everyday는 기본 무료 보유 의상.
  */
 public final class OutfitCatalog {
 
@@ -16,10 +16,10 @@ public final class OutfitCatalog {
 
     public static final List<Item> ITEMS = List.of(
             new Item("everyday", "데일리 세트", 0, true),
-            new Item("formal-set", "포멀 세트", 150, false),
-            new Item("pajama-set", "파자마 세트", 100, false),
-            new Item("picnic-set", "피크닉 세트", 120, false),
-            new Item("sport-set", "스포츠 세트", 120, false)
+            new Item("formal", "포멀 세트", 30, false),
+            new Item("pajama", "파자마 세트", 35, false),
+            new Item("picnic", "피크닉 세트", 40, false),
+            new Item("sport", "스포츠 세트", 50, false)
     );
 
     public static boolean exists(String outfitId) {
