@@ -44,6 +44,14 @@ public class AuthService {
         return new AuthResponse(user.getId(), user.getEmail(), token);
     }
 
+    @Transactional
+    public MeResponse changeNickname(Long userId, NicknameRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        user.changeNickname(request.nickname().trim());
+        return new MeResponse(user.getId(), user.getEmail(), user.getNickname(), user.getCoins());
+    }
+
     public MeResponse getMe(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));

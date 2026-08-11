@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.withu.ai.MissionAiClient;
+import com.withu.ai.MissionAiClient.RecentMeal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -12,6 +13,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * GPT-4o(mini) 기반 개인 맞춤 미션 생성 (PRD 5. AI 개인 맞춤 미션).
@@ -22,11 +24,21 @@ import java.util.List;
 public class OpenAiMissionClient implements MissionAiClient {
 
     private static final String SYSTEM_PROMPT = """
-            너는 건강관리 앱 WITHU의 AI 코치야. 사용자의 건강 목표와 신체 정보를 바탕으로
-            하루 동안 실천 가능한 미션을 만들어. 식단 미션 2개(식사 관련, 구체적인 행동), 생활습관 미션 1개
-            (물 마시기/걷기/스트레칭 등 간단한 습관)를 생성해.
+            너는 건강관리 앱 WITHU의 AI 코치야. 사용자의 건강 목표와 신체 정보, 그리고 어제까지의
+            수행 결과를 바탕으로 오늘 하루 실천 가능한 미션을 만들어.
+
+            중요: 어제 식단 분석 결과가 주어지면 반드시 그걸 반영해. 예를 들어 어제 저녁이 목표에
+            맞지 않았다면(BAD) 오늘 저녁 미션을 그 부분에 초점을 맞춰 만들고, 어제 거른 끼니가 있으면
+            오늘은 그 끼니를 챙기는 미션을 넣어. 어제와 똑같은 미션을 그대로 반복하지 마.
+
+            난이도 지시:
+            - UP: 어제 잘 해냈으니 한 단계 더 도전적인 미션으로 (양·강도·구체성을 높임)
+            - KEEP: 지금 수준을 유지
+            - DOWN: 부담을 낮춰 더 쉽고 작은 행동으로
+
             반드시 아래 JSON 형식으로만 응답해:
-            {"missions": [{"type": "DIET", "title": "..."}, {"type": "DIET", "title": "..."}, {"type": "LIFESTYLE", "title": "..."}]}
+            {"missions": [{"type": "DIET", "title": "..."}, {"type": "LIFESTYLE", "title": "..."}]}
+            type은 DIET(식사 관련) 또는 LIFESTYLE(물 마시기/걷기/스트레칭 등 간단한 습관)이야.
             title은 한국어로 20자 이내, 구체적이고 실천 가능한 표현으로 작성해.
             """;
 
@@ -40,10 +52,15 @@ public class OpenAiMissionClient implements MissionAiClient {
             String userPrompt = """
                     건강 목표: %s
                     성별: %s, 나이: %d세, 키: %dcm, 몸무게: %dkg
-                    최근 미션 달성률: %.0f%%
+                    직전 미션 달성률: %.0f%%
+                    난이도 지시: %s
+                    만들 미션 개수: 정확히 %d개 (더도 덜도 말고 이 개수만큼.
+                    식단 미션을 우선하고, 2개 이상이면 마지막 1개는 생활습관 미션으로)
+                    어제 식단 분석 결과: %s
                     """.formatted(
                     command.goal(), command.gender(), command.age(), command.height(), command.weight(),
-                    command.previousAchievementRate());
+                    command.previousAchievementRate(), command.difficulty(), command.missionCount(),
+                    describeRecentMeals(command.recentMeals()));
 
             ObjectNode requestBody = objectMapper.createObjectNode();
             requestBody.put("model", model);
@@ -77,10 +94,24 @@ public class OpenAiMissionClient implements MissionAiClient {
             if (missions.isEmpty()) {
                 throw new IllegalStateException("OpenAI가 빈 미션 목록을 반환함");
             }
-            return missions;
+            // 개수는 서버가 정한 값(난이도 규칙의 결과)이 기준 — AI가 더 많이 만들어도 잘라낸다.
+            return missions.size() > command.missionCount()
+                    ? missions.subList(0, command.missionCount())
+                    : missions;
         } catch (Exception e) {
             log.error("OpenAI 미션 생성 실패, fallback 없이 예외 전파", e);
             throw new IllegalStateException("AI 미션 생성에 실패했습니다", e);
         }
+    }
+
+    /** 어제 식단을 AI가 읽을 수 있는 한 줄로 정리한다. 기록이 없으면 첫날이라고 알려준다. */
+    private String describeRecentMeals(List<RecentMeal> meals) {
+        if (meals == null || meals.isEmpty()) {
+            return "기록 없음 (첫날이거나 어제 인증하지 않음)";
+        }
+        return meals.stream()
+                .map(meal -> "%s: 목표적합도 %s, 미션달성 %s".formatted(
+                        meal.slot(), meal.fit(), meal.achieved() ? "성공" : "실패"))
+                .collect(Collectors.joining(" / "));
     }
 }

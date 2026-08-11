@@ -1,15 +1,11 @@
 package com.withu.mission.service;
 
-import com.withu.ai.MissionAiClient;
-import com.withu.ai.MissionAiClient.GenerateMissionCommand;
-import com.withu.ai.MissionAiClient.GeneratedMission;
 import com.withu.auth.entity.User;
 import com.withu.auth.repository.UserRepository;
 import com.withu.character.service.ExpressionResolver;
 import com.withu.global.common.GameConstants;
 import com.withu.global.error.CustomException;
 import com.withu.global.error.ErrorCode;
-import com.withu.group.entity.Group;
 import com.withu.group.entity.GroupMember;
 import com.withu.group.repository.GroupMemberRepository;
 import com.withu.mission.dto.MissionDto.Response;
@@ -17,12 +13,11 @@ import com.withu.mission.dto.MissionDto.TodaySummary;
 import com.withu.mission.entity.Mission;
 import com.withu.mission.entity.MissionType;
 import com.withu.mission.repository.MissionRepository;
-import com.withu.onboarding.entity.Onboarding;
-import com.withu.onboarding.repository.OnboardingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -35,56 +30,28 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class MissionService {
 
-    // 그룹에서 설정한 미션 시작 시간 기준 +0h/+3.5h/+7h/+11h 간격으로 하나씩 도착 (프론트 missionApi.js와 동일).
-    private static final int[] UNLOCK_OFFSET_MINUTES = {0, 210, 420, 660};
-
     private final MissionRepository missionRepository;
     private final GroupMemberRepository groupMemberRepository;
-    private final OnboardingRepository onboardingRepository;
     private final UserRepository userRepository;
-    private final MissionAiClient missionAiClient;
     private final ExpressionResolver expressionResolver;
+    private final MissionSetCreator missionSetCreator;
 
-    @Transactional
+    /**
+     * 오늘 미션을 가져오되, 아직 없으면 만들어서 준다.
+     *
+     * <p>트랜잭션 밖에서 실행한다. 세트 생성은 {@link MissionSetCreator}가 자기 트랜잭션에서 처리하므로,
+     * 동시 요청에 밀려 유니크 제약에 걸리더라도 이쪽 트랜잭션이 오염되지 않고 먼저 만들어진 세트를 다시 읽을 수 있다.
+     * (브라우저가 15초마다 폴링해서 실제로 겹친다.)
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public TodaySummary generateToday(Long userId) {
         LocalDate today = LocalDate.now();
-        if (missionRepository.existsByUserIdAndMissionDate(userId, today)) {
-            return getToday(userId);
-        }
-
-        Group group = getGroupOfUser(userId);
-        Onboarding onboarding = onboardingRepository.findByUserIdAndGroupId(userId, group.getId())
-                .orElseThrow(() -> new CustomException(ErrorCode.ONBOARDING_NOT_FOUND));
-
-        List<GeneratedMission> generated = missionAiClient.generateDailyMissions(new GenerateMissionCommand(
-                onboarding.getGoal().name().toLowerCase(),
-                onboarding.getGender().name().toLowerCase(),
-                onboarding.getAge(),
-                onboarding.getHeight(),
-                onboarding.getWeight(),
-                0
-        ));
-
-        LocalTime base = LocalTime.of(group.getMissionHour(), group.getMissionMinute());
-        for (int i = 0; i < generated.size(); i++) {
-            GeneratedMission g = generated.get(i);
-            LocalTime unlockTime = i == 0 ? null : base.plusMinutes(offsetFor(i));
-            Mission mission = Mission.builder()
-                    .userId(userId)
-                    .groupId(group.getId())
-                    .missionDate(today)
-                    .seq(i)
-                    .type(MissionType.valueOf(g.type().name()))
-                    .title(g.title())
-                    .unlockTime(unlockTime)
-                    .build();
-            missionRepository.save(mission);
-        }
-        try {
-            missionRepository.flush();
-        } catch (DataIntegrityViolationException e) {
-            // 동시에 들어온 다른 요청이 이미 오늘 세트를 만든 경우 — 먼저 만들어진 쪽을 그대로 쓴다.
-            log.info("오늘 미션 세트가 이미 생성되어 있어 기존 세트를 사용합니다. userId={}", userId);
+        if (!missionRepository.existsByUserIdAndMissionDate(userId, today)) {
+            try {
+                missionSetCreator.createTodaySet(userId, today);
+            } catch (DataIntegrityViolationException e) {
+                log.info("오늘 미션 세트가 이미 생성되어 있어 기존 세트를 사용합니다. userId={}", userId);
+            }
         }
         return getToday(userId);
     }
@@ -149,13 +116,4 @@ public class MissionService {
         });
     }
 
-    private int offsetFor(int index) {
-        return index < UNLOCK_OFFSET_MINUTES.length ? UNLOCK_OFFSET_MINUTES[index] : UNLOCK_OFFSET_MINUTES[UNLOCK_OFFSET_MINUTES.length - 1];
-    }
-
-    private Group getGroupOfUser(Long userId) {
-        GroupMember member = groupMemberRepository.findByUserId(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_GROUP_MEMBER));
-        return member.getGroup();
-    }
 }

@@ -18,6 +18,12 @@ public class AuthDto {
     ) {
     }
 
+    /** 닉네임은 랭킹·그룹 피드에서 사람을 구분하는 유일한 표시 이름이다 (프론트 MAX_NICKNAME_LENGTH=10과 일치). */
+    public record NicknameRequest(
+            @NotBlank @Size(max = 10, message = "닉네임은 10자 이내로 입력해주세요") String nickname
+    ) {
+    }
+
     public record AuthResponse(
             Long userId,
             String email,

@@ -31,4 +31,9 @@ public class AuthController {
     public ApiResponse<MeResponse> me() {
         return ApiResponse.success(authService.getMe(SecurityUtil.getCurrentUserId()));
     }
+
+    @PatchMapping("/me/nickname")
+    public ApiResponse<MeResponse> changeNickname(@Valid @RequestBody NicknameRequest request) {
+        return ApiResponse.success(authService.changeNickname(SecurityUtil.getCurrentUserId(), request));
+    }
 }

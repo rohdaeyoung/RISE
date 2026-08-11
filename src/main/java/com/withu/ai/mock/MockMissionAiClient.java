@@ -26,13 +26,20 @@ public class MockMissionAiClient implements MissionAiClient {
 
     @Override
     public List<GeneratedMission> generateDailyMissions(GenerateMissionCommand command) {
+        // mock은 AI 추론을 흉내낼 수 없지만, 개수 축소(3일 연속 실패 → 1개)만큼은 실제 구현과 맞춰둔다.
+        // 이걸 지키지 않으면 키 없이 개발할 때 미션 개수가 실제 동작과 달라진다.
+        int missionCount = Math.max(1, command.missionCount());
+        int dietCount = missionCount == 1 ? 1 : missionCount - 1;
+
         List<String> dietPool = DIET_POOL.getOrDefault(command.goal(), DIET_POOL.get("health"));
-        List<String> dietTitles = pickRandom(dietPool, Math.min(2, dietPool.size()));
-        List<String> lifestyleTitles = pickRandom(LIFESTYLE_POOL, Math.min(1, LIFESTYLE_POOL.size()));
+        List<String> dietTitles = pickRandom(dietPool, Math.min(dietCount, dietPool.size()));
 
         List<GeneratedMission> missions = new ArrayList<>();
         dietTitles.forEach(title -> missions.add(new GeneratedMission(MissionType.DIET, title)));
-        lifestyleTitles.forEach(title -> missions.add(new GeneratedMission(MissionType.LIFESTYLE, title)));
+        if (missionCount > 1) {
+            pickRandom(LIFESTYLE_POOL, 1)
+                    .forEach(title -> missions.add(new GeneratedMission(MissionType.LIFESTYLE, title)));
+        }
         return missions;
     }
 
