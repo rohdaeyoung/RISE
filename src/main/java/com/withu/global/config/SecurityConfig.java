@@ -28,7 +28,11 @@ public class SecurityConfig {
             "/api/auth/login",
             // 사진은 <img> 태그로 직접 불러오기 때문에 토큰 헤더를 붙일 수 없어 공개로 둔다(주소는 임의의 UUID).
             "/api/files/**",
+            // "/swagger-ui/**"만 열면 진입점인 /swagger-ui.html이 403이 나 문서를 아예 열 수 없다.
+            // 그 주소가 /swagger-ui/index.html로 리다이렉트되는 구조라 둘 다 명시해야 한다.
+            "/swagger-ui.html",
             "/swagger-ui/**",
+            "/v3/api-docs",
             "/v3/api-docs/**"
     };
 
