@@ -1,6 +1,7 @@
 package com.withu.mission.service;
 
 import com.withu.ai.MissionAiClient;
+import com.withu.ai.mock.MockMissionAiClient;
 import com.withu.ai.MissionAiClient.GenerateMissionCommand;
 import com.withu.ai.MissionAiClient.GeneratedMission;
 import com.withu.global.error.CustomException;
@@ -15,6 +16,7 @@ import com.withu.mission.service.MissionHistoryAnalyzer.MissionPlan;
 import com.withu.onboarding.entity.Onboarding;
 import com.withu.onboarding.repository.OnboardingRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,7 @@ import java.util.List;
  * 걸리면 그 트랜잭션은 롤백 대상이 되어 같은 트랜잭션 안에서는 재조회조차 할 수 없다. 생성만 별도 트랜잭션으로
  * 떼어놓아야, 동시 요청에 밀린 쪽이 먼저 만들어진 세트를 깨끗하게 다시 읽어갈 수 있다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 class MissionSetCreator {
@@ -40,6 +43,8 @@ class MissionSetCreator {
     private final GroupMemberRepository groupMemberRepository;
     private final OnboardingRepository onboardingRepository;
     private final MissionAiClient missionAiClient;
+    /** AI 호출이 실패했을 때 쓰는 고정 풀 생성기. 키가 없으면 위 필드와 같은 인스턴스가 된다. */
+    private final MockMissionAiClient fallbackMissionAiClient;
     private final MissionHistoryAnalyzer missionHistoryAnalyzer;
 
     @Transactional
@@ -52,7 +57,7 @@ class MissionSetCreator {
         // (PRD 1·5·6 — 수행 결과를 분석해 다음 미션을 생성하는 루프).
         MissionPlan plan = missionHistoryAnalyzer.analyze(userId, today);
 
-        List<GeneratedMission> generated = missionAiClient.generateDailyMissions(new GenerateMissionCommand(
+        GenerateMissionCommand command = new GenerateMissionCommand(
                 onboarding.getGoal().name().toLowerCase(),
                 onboarding.getGender().name().toLowerCase(),
                 onboarding.getAge(),
@@ -62,7 +67,8 @@ class MissionSetCreator {
                 plan.difficulty(),
                 plan.missionCount(),
                 plan.recentMeals()
-        ));
+        );
+        List<GeneratedMission> generated = generateWithFallback(command);
 
         LocalTime base = LocalTime.of(group.getMissionHour(), group.getMissionMinute());
         for (int i = 0; i < generated.size(); i++) {
@@ -80,6 +86,22 @@ class MissionSetCreator {
         }
         // 커밋까지 미루지 않고 여기서 제약 위반을 드러내, 호출자가 "이미 만들어졌다"로 처리할 수 있게 한다.
         missionRepository.flush();
+    }
+
+    /**
+     * OpenAI가 잠깐 죽거나 느려져도 미션은 나와야 한다. 미션이 없으면 인증도, 그룹 피드도, 달성률도
+     * 전부 멈춰 앱이 통째로 못 쓰게 된다. 개인화 품질은 떨어지지만 고정 풀에서라도 미션을 준다.
+     *
+     * <p>식단 분석은 반대로 mock 대체를 하지 않는다({@code MealService}). 사진을 보지도 않고
+     * 달성 여부를 지어내면 사용자를 속이는 것이기 때문이다.
+     */
+    private List<GeneratedMission> generateWithFallback(GenerateMissionCommand command) {
+        try {
+            return missionAiClient.generateDailyMissions(command);
+        } catch (RuntimeException e) {
+            log.warn("AI 미션 생성에 실패해 기본 미션으로 대체합니다. goal={}", command.goal(), e);
+            return fallbackMissionAiClient.generateDailyMissions(command);
+        }
     }
 
     private int offsetFor(int index) {

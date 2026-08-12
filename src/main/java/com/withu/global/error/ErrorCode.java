@@ -39,6 +39,8 @@ public enum ErrorCode {
 
     // meal
     MEAL_ALREADY_LOGGED(HttpStatus.CONFLICT, "MEAL_001", "이미 인증한 식단입니다"),
+    MEAL_ANALYSIS_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "MEAL_002",
+            "지금은 사진을 분석할 수 없어요. 잠시 후 다시 시도해주세요"),
 
     // challenge
     CHALLENGE_NOT_FINISHED(HttpStatus.CONFLICT, "CHALLENGE_001", "아직 챌린지가 끝나지 않았어요"),
@@ -46,6 +48,7 @@ public enum ErrorCode {
     // file
     FILE_NOT_FOUND(HttpStatus.NOT_FOUND, "FILE_001", "파일을 찾을 수 없습니다"),
     FILE_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "FILE_002", "사진 용량이 너무 커요. 10MB 이하로 올려주세요"),
+    NOT_AN_IMAGE(HttpStatus.BAD_REQUEST, "FILE_003", "사진 파일만 올릴 수 있어요"),
 
     // shop
     OUTFIT_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOP_001", "존재하지 않는 의상입니다"),
