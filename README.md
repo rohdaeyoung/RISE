@@ -60,16 +60,51 @@ echo "OPENAI_API_KEY=발급받은-키" > .env
 - **`.env` 없이도 그냥 돌아갑니다.** 키가 없으면 AI가 mock 구현체로 자동 전환되므로,
   키를 못 받은 사람도 백엔드 개발을 계속할 수 있습니다.
 
-### 프론트와 같이 띄우기
+### 프론트와 백엔드를 연결해 실제 웹앱으로 띄우기
 
-프론트(`RISE-client`)의 `frontend/.env.local`에 아래 한 줄을 넣고 `npm run dev`:
+> **배포된 주소는 아직 없습니다.** 지금 동작하는 웹앱은 아래 방법으로 각자 컴퓨터에서 띄우는
+> 형태뿐입니다. `localhost`는 "그 명령을 실행한 컴퓨터"를 가리키므로, 이 주소를 남에게
+> 보내도 열리지 않습니다. 공유 가능한 주소는 배포 후에 생깁니다.
+
+띄우면 이렇게 물립니다.
 
 ```
-VITE_API_BASE_URL=http://localhost:8080
+브라우저 → localhost:5173 (프론트 화면)
+              ↓ REST 호출
+          localhost:8080 (이 백엔드)
+              ↓                ↘
+          MySQL (데이터)      OpenAI API (미션 생성·식단 분석)
 ```
 
-이 값을 **지우면 프론트가 mock 모드로 돌아갑니다.** 백엔드 없이 프론트만 데모할 수 있도록
-일부러 이렇게 분리해 두었으니, 연동한다고 mock 코드를 지우지 마세요.
+**터미널 1 — 백엔드**
+
+```bash
+cd RISE-server
+DB_PORT=3307 DEMO_SEED=true gradle bootRun
+```
+
+`DB_PORT`는 MySQL 포트에 맞추세요(기본 3306). `DEMO_SEED=true`를 켜면 7일차 데모 그룹이
+자동으로 만들어져 로그인하자마자 전 기능을 볼 수 있습니다.
+
+**터미널 2 — 프론트**
+
+```bash
+cd RISE-client/frontend
+echo "VITE_API_BASE_URL=http://localhost:8080" > .env.local
+npm install && npm run dev
+```
+
+**브라우저에서 `http://localhost:5173` 접속 → `test@withu.app` / `withu1234` 로 로그인.**
+
+로그인 직후 MY 화면에 오늘의 미션과 달성률이 뜨고, 그룹 탭에서 Day 7 / 4인 피드와
+7일 챌린지 결과까지 확인할 수 있습니다.
+
+> ⚠️ 단, 프론트의 백엔드 연동 브랜치가 아직 push되지 않아서(아래 [프론트에서 해야 할 일](#1-브랜치-push--가장-시급))
+> **GitHub에서 받은 프론트로는 이 연결이 되지 않습니다.** 위 절차는 그 브랜치가 올라온 뒤에
+> 유효합니다. 지금 당장 백엔드만 확인하려면 `http://localhost:8080/swagger-ui.html`을 쓰세요.
+
+`VITE_API_BASE_URL`을 **지우면 프론트가 mock 모드로 돌아갑니다.** 백엔드 없이 프론트만
+데모할 수 있도록 일부러 분리해 둔 구조이니, 연동한다고 mock 코드를 지우지 마세요.
 
 ---
 
