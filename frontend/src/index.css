@@ -86,3 +86,100 @@ button {
     animation: none;
   }
 }
+
+/* 하단 탭 클릭 시 아이콘 바운스 피드백 */
+@keyframes nav-icon-bounce {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.35);
+  }
+  60% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.nav-icon-bounce {
+  animation: nav-icon-bounce 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nav-tab {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-icon-bounce {
+    animation: none;
+  }
+}
+
+/* 탭 전환 시 토스 앱 스타일 크로스페이드 — 사라졌다가 다시 나타나는 느낌 */
+@keyframes page-fade-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.page-transition {
+  transform-origin: 50% 40%;
+}
+
+.page-transition-exit {
+  animation: page-fade-out 120ms ease-in forwards;
+  pointer-events: none;
+}
+
+.page-transition-enter {
+  animation: page-fade-in 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition-exit,
+  .page-transition-enter {
+    animation: none;
+  }
+}
+
+/* 새 댓글이 등록되면 아래에서 위로 슬라이드하며 나타남. 기존 댓글은 배열에 새 항목이 append돼도
+   React가 key로 그대로 재사용해서 마운트되지 않으므로, 이 애니메이션은 새로 마운트되는
+   댓글에서만(=새로 단 댓글에서만) 재생된다. */
+@keyframes comment-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.comment-enter {
+  animation: comment-slide-up 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comment-enter {
+    animation: none;
+  }
+}

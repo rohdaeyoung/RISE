@@ -6,6 +6,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const MEAL_LABELS = { breakfast: '아침', lunch: '점심', dinner: '저녁' };
 
+// 그룹 피드 인증 사진에 남길 수 있는 이모티콘 반응 종류.
+export const REACTION_EMOJIS = ['❤️', '👍', '😂', '😮', '😢'];
+
 // 나이/키/몸무게 허용 범위 — 마이너스 입력이 저장되지 않도록 온보딩 화면과 리듀서 양쪽에서
 // 이 값을 기준으로 clamp함. 키/몸무게는 상한 없이 최소값만 강제(마이너스 방지).
 export const AGE_RANGE = { min: 1, max: 100 };
@@ -23,6 +26,7 @@ export const DEFAULT_GROUP_NAME = '건강한 친구들';
 export const CHALLENGE_LENGTH_DAYS = 7;
 export const MAX_GROUP_NAME_LENGTH = 10;
 export const MAX_NICKNAME_LENGTH = 10;
+export const MAX_COMMENT_LENGTH = 200;
 
 const initialState = {
   auth: { userId: null, email: null },
@@ -44,6 +48,13 @@ const initialState = {
   // 오늘 올린 미션/식단 인증 사진 중 가장 최근 것 — 그룹 피드의 "내 인증 사진" 썸네일로 씀.
   // 새 사이클/새 날짜가 되면 meals와 함께 비워짐.
   todayPhoto: null,
+  // 그룹 피드 인증 사진에 대한 이모티콘 반응 — { [memberId]: { myEmoji, counts: { [emoji]: count } } }.
+  // 한 사람당 하나의 이모티콘만 선택 가능(다시 누르면 취소, 다른 이모티콘 누르면 교체).
+  // todayPhoto와 마찬가지로 "오늘의 인증 피드" 기준이라 새 사이클/새 날짜가 되면 함께 비워짐.
+  reactions: {},
+  // 오늘의 인증 피드에 남긴 댓글 — [{ id, text, authorLabel, createdAt }]. reactions와 마찬가지로
+  // "오늘" 기준이라 새 사이클/새 날짜가 되면 함께 비워짐. createdAt(ms epoch)으로 작성 일시를 표시.
+  comments: [],
   challengeSummary: null,
   // 지나간 날짜의 달성 기록 스냅샷 — [{ day, rate, missionsDone, missionsTotal }]. 그룹 생성/재시작 시 비움.
   // 오늘(진행 중인 날)은 여기 안 들어있고 missions/meals로 실시간 계산됨 — dailyHistory.length + 1이 오늘.
@@ -116,6 +127,8 @@ function reducer(state, action) {
         missions: generateDailyMissions({ goal: state.onboarding.goal, missionHour, missionMinute, firstUnlocksNow: true }),
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
+        reactions: {},
+        comments: [],
         challengeSummary: null,
         challengeCoins: 0,
         dailyHistory: [],
@@ -231,6 +244,34 @@ function reducer(state, action) {
       };
     }
 
+    // 그룹 피드에서 남의 인증 사진에 이모티콘 반응을 토글. 사진마다(memberId 기준) 내가 고른 이모티콘 1개와
+    // 이모티콘별 카운트를 들고 있음 — 같은 이모티콘을 다시 누르면 취소, 다른 이모티콘을 누르면 교체.
+    case 'TOGGLE_REACTION': {
+      const current = state.reactions[action.memberId] || { myEmoji: null, counts: {} };
+      const counts = { ...current.counts };
+      if (current.myEmoji) {
+        counts[current.myEmoji] = Math.max(0, (counts[current.myEmoji] || 0) - 1);
+        if (counts[current.myEmoji] === 0) delete counts[current.myEmoji];
+      }
+      const myEmoji = current.myEmoji === action.emoji ? null : action.emoji;
+      if (myEmoji) counts[myEmoji] = (counts[myEmoji] || 0) + 1;
+      return { ...state, reactions: { ...state.reactions, [action.memberId]: { myEmoji, counts } } };
+    }
+
+    // 오늘의 인증 피드에 댓글 남기기. 작성자는 항상 나(닉네임 미설정 시 "나")이고,
+    // createdAt은 몇일 몇시 몇분에 남겼는지 표시하는 데 씀.
+    case 'ADD_COMMENT': {
+      const text = action.text?.trim().slice(0, MAX_COMMENT_LENGTH);
+      if (!text) return state;
+      const comment = {
+        id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        text,
+        authorLabel: memberLabel({ nickname: state.nickname }, true),
+        createdAt: Date.now(),
+      };
+      return { ...state, comments: [...state.comments, comment] };
+    }
+
     case 'END_CHALLENGE': {
       const rate = achievementRate(state.missions);
       // 최종 결과의 "최종 순위"는 오늘 하루 %가 아니라 이번 7일간 모은 포인트 기준으로 다시 정렬.
@@ -273,6 +314,8 @@ function reducer(state, action) {
         missions,
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
+        reactions: {},
+        comments: [],
         challengeSummary: null,
         challengeCoins: 0,
         dailyHistory: [],
@@ -315,6 +358,8 @@ function reducer(state, action) {
         missions,
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
+        reactions: {},
+        comments: [],
         character: { ...state.character, expression: 'normal' },
       };
     }
