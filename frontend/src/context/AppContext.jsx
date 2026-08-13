@@ -8,6 +8,7 @@ import {
 import { isBackendEnabled } from '../api/client';
 import { fetchCharacter, fetchMe, fetchOnboarding } from '../api/profileApi';
 import { fetchMyGroup } from '../api/groupApi';
+import { fetchTodayMeals } from '../api/mealApi';
 
 const STORAGE_KEY = 'withu_state';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -229,6 +230,15 @@ function reducer(state, action) {
       };
     }
 
+    // 서버에 기록된 오늘의 식단으로 맞춘다. LOG_MEAL이 방금 반영한 것과 같은 내용이지만,
+    // 새로고침·기기 변경 후에도 인증 표시가 남고 그룹원이 보는 것과 어긋나지 않게 하는 건 이쪽이다.
+    case 'SET_MEALS': {
+      const latestPhoto = ['dinner', 'lunch', 'breakfast']
+        .map((key) => action.meals[key]?.photo)
+        .find(Boolean);
+      return { ...state, meals: action.meals, todayPhoto: latestPhoto ?? state.todayPhoto };
+    }
+
     case 'COMPLETE_MISSION': {
       const target = state.missions.find((m) => m.id === action.missionId);
       if (!target || target.done) return state;
@@ -429,6 +439,10 @@ function useBackendSync(state, dispatch) {
           const missions = await fetchOrCreateTodayMissions();
           dispatch({ type: 'SET_MISSIONS', missions });
         }
+
+        // 식단 인증도 서버 기록을 따른다 — 새로고침이나 기기 변경으로 인증 표시가 사라지지 않게.
+        const meals = await fetchTodayMeals().catch(() => null);
+        if (meals) dispatch({ type: 'SET_MEALS', meals });
       }
     } catch {
       // 네트워크 오류 시에는 마지막으로 받은 로컬 상태를 그대로 유지한다.
