@@ -57,7 +57,15 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
 
   if (!res.ok || payload?.success === false) {
     const error = payload?.error;
-    throw { field: error?.field ?? null, message: error?.message ?? '요청을 처리하지 못했어요' };
+    // status와 code를 함께 실어 보낸다. "서버가 아니라고 답한 것"과 "연결이 안 된 것"을 호출부에서
+    // 구분해야 하는 경우가 있다 — 예를 들어 그룹 조회가 403이면 정말 그룹이 없는 것이므로 로컬
+    // 상태를 지워야 하지만, 네트워크 오류라면 지우면 안 된다(잠깐 끊겼다고 그룹이 사라지면 안 됨).
+    throw {
+      status: res.status,
+      code: error?.code ?? null,
+      field: error?.field ?? null,
+      message: error?.message ?? '요청을 처리하지 못했어요',
+    };
   }
   return payload?.data ?? null;
 }

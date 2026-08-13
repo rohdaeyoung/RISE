@@ -151,8 +151,18 @@ function reducer(state, action) {
       return { ...state, group: { ...state.group, name } };
     }
 
+    // 미션과 식단은 그룹 사이클에 속한 기록이라 그룹을 떠나면 같이 비운다.
+    // 남겨두면 그룹이 없는데도 MY 화면에 지난 그룹의 미션이 그대로 떠 있고,
+    // 그걸 인증하려 하면 서버는 그룹원이 아니라며 거절해 아무 반응이 없는 것처럼 보인다.
     case 'LEAVE_GROUP':
-      return { ...state, group: null, challengeSummary: null };
+      return {
+        ...state,
+        group: null,
+        challengeSummary: null,
+        missions: [],
+        meals: { breakfast: null, lunch: null, dinner: null },
+        todayPhoto: null,
+      };
 
     case 'SET_ONBOARDING': {
       const incoming = { ...action.onboarding };
@@ -422,8 +432,22 @@ function useBackendSync(state, dispatch) {
       }
 
       // 로컬에 그룹이 없어도 항상 물어본다 — 서버가 소속의 원본이라, 로컬 상태를 조건으로 걸면
-      // 새 기기에서 로그인했을 때 이미 속한 그룹을 영영 못 찾는다. (403이면 정말 그룹이 없는 것)
-      const group = await fetchMyGroup({ myUserId }).catch(() => null);
+      // 새 기기에서 로그인했을 때 이미 속한 그룹을 영영 못 찾는다.
+      let group = null;
+      let notInGroup = false;
+      try {
+        group = await fetchMyGroup({ myUserId });
+      } catch (e) {
+        // 403은 "당신은 그룹원이 아니다"라는 서버의 확답이다. 네트워크 오류(status 없음)와 달리
+        // 이때는 로컬에 남은 그룹을 지워야 한다. 안 지우면 서버에서는 이미 나갔는데 화면에는
+        // 그룹이 계속 보이고, 그 안의 기능은 전부 403이 나면서 아무것도 안 되는 상태가 된다.
+        notInGroup = e?.status === 403;
+      }
+
+      if (!group && notInGroup && inGroup) {
+        dispatch({ type: 'LEAVE_GROUP' });
+      }
+
       if (group) {
         let goalKnown = hasGoal;
         if (!inGroup) {
