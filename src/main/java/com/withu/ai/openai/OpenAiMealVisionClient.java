@@ -31,21 +31,30 @@ public class OpenAiMealVisionClient implements MealVisionAiClient {
             칼로리를 정확한 수치로 계산하려 하지 말고 방향성만 판단해.
 
             반드시 아래 JSON 형식으로만 응답해:
-            {"achieved": true|false, "internalFit": "GOOD"|"NORMAL"|"BAD"}
+            {"food": "사진에 보이는 것", "achieved": true|false, "internalFit": "GOOD"|"NORMAL"|"BAD"}
 
-            achieved: 주어진 "오늘의 식단 미션"을 이 식사로 수행했다고 볼 수 있으면 true.
-            판정 기준은 이렇게 잡아:
-            - 사진이 사람이 먹는 음식이고 미션 취지에 어긋나지 않으면 true로 본다.
-            - 미션 조건을 완벽히 만족하지 않아도, 그 방향으로 노력한 흔적이 보이면 true다.
-              (예: 미션이 "채소 두 가지 이상"인데 한 가지만 보여도 채소를 챙겼으면 true)
-            - false는 미션에 명백히 반하는 경우에만 쓴다.
-              (예: 미션이 "야식 대신 물"인데 치킨과 맥주 사진)
-            - 음식이 전혀 보이지 않는 사진이면 false.
-            - 미션이 "-"로 비어 있으면 건강한 식사인지만 보고 판단한다.
-            사용자는 습관을 만드는 중이지 시험을 보는 게 아니다. 애매하면 true 쪽으로 판단해.
+            food: 먼저 사진에 무엇이 보이는지 그대로 적어. 음식이 아니면 그 사실을 적어
+            ("음식 아님 - 하늘 사진", "음식 아님 - 단색 이미지"처럼). 판정은 이걸 적은 뒤에 해.
+
+            achieved: 아래 순서로 판단해. 앞 단계에서 false가 나오면 거기서 끝이다.
+            1) 사진에 실제 음식이나 음료가 보이지 않으면 false.
+               사람, 풍경, 화면 캡처, 사물, 단색·무늬 이미지, 무엇인지 알아볼 수 없는 사진은 모두 false다.
+               음식 사진이 아닌데 true를 주면 인증이 아무 의미가 없어진다.
+            2) 음식이 맞다면, "오늘의 식단 미션"을 이 식사로 수행했다고 볼 수 있는지 본다.
+               미션이 요구하는 핵심 요소가 사진에 보이면 true.
+               (예: 미션이 "채소 반찬 두 가지 이상"인데 채소 반찬이 하나뿐이면 아쉬워도 true,
+                아예 채소가 없고 고기와 밥만 있으면 false)
+            3) 미션 취지에 정면으로 어긋나면 false.
+               (예: 미션이 "야식 대신 물 마시기"인데 치킨과 맥주,
+                미션이 "탄수화물 줄이기"인데 라면과 공기밥)
+            4) 미션이 "-"로 비어 있으면, 건강 목표에 맞는 식사인지만 보고 판단한다.
+
+            판정은 사진에 실제로 보이는 것만 근거로 삼아. 사용자가 적어낸 음식 이름이 사진과 다르면
+            사진을 믿어라. 애매하면 미션의 핵심 요소가 보이는지를 기준으로 결정해.
 
             internalFit: 건강 목표 적합도. 사용자에게 보여주지 않고 다음 미션 난이도 조절에만 쓰므로
             achieved와 무관하게 솔직하게 매겨. 목표에 잘 맞으면 GOOD, 보통이면 NORMAL, 어긋나면 BAD.
+            음식이 아닌 사진은 BAD.
             """;
 
     private final RestClient openAiRestClient;
@@ -91,6 +100,10 @@ public class OpenAiMealVisionClient implements MealVisionAiClient {
             JsonNode parsed = objectMapper.readTree(content);
 
             boolean achieved = parsed.path("achieved").asBoolean(false);
+            // 오판 신고가 들어왔을 때 AI가 사진을 무엇으로 봤는지 확인할 수 있어야 한다.
+            // 사진 자체는 남기지 않고 판단 근거만 남긴다.
+            log.info("식단 분석 결과. 미션={} 인식={} 달성={} 적합도={}",
+                    missionTitle, parsed.path("food").asText("-"), achieved, parsed.path("internalFit").asText("-"));
             InternalFit fit = InternalFit.valueOf(parsed.path("internalFit").asText("NORMAL").toUpperCase());
             return new MealAnalysisResult(achieved, fit);
         } catch (Exception e) {
