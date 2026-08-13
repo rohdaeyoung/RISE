@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dumbbell, Salad, Sprout } from 'lucide-react';
-import { AGE_RANGE, HEIGHT_RANGE, WEIGHT_RANGE, useAppDispatch } from '../context/AppContext';
+import { AGE_RANGE, HEIGHT_RANGE, WEIGHT_RANGE, useAppDispatch, useAppSync } from '../context/AppContext';
 import { submitOnboarding } from '../api/profileApi';
 
 const GOAL_OPTIONS = [
@@ -25,6 +25,7 @@ const MAX_WEIGHT = WEIGHT_RANGE.max;
 
 export default function OnboardingPage() {
   const dispatch = useAppDispatch();
+  const sync = useAppSync();
   const navigate = useNavigate();
   const [stepIdx, setStepIdx] = useState(0);
   const [form, setForm] = useState({ goal: null, gender: null, age: '', height: '', weight: '' });
@@ -43,8 +44,9 @@ export default function OnboardingPage() {
     };
     dispatch({ type: 'SET_ONBOARDING', onboarding });
     // 백엔드 모드에서는 이 정보가 AI 미션 생성의 입력값이 되므로 서버에 먼저 저장한다.
-    // 저장이 끝나면 AppContext의 동기화가 서버에서 생성된 미션을 받아온다.
-    submitOnboarding(onboarding).finally(() => {
+    // 저장 직후 곧바로 동기화해서 서버가 만든 미션을 받아온다 — 이걸 안 부르면 다음 주기(15초)까지
+    // 미션이 빈 채로 보인다.
+    submitOnboarding(onboarding).then(() => sync()).finally(() => {
       // 캐릭터는 이미 회원가입 직후에 골랐고, 온보딩은 그룹 생성/참여 다음 단계라
       // 끝나면 곧장 그룹 피드로 간다.
       navigate('/group');

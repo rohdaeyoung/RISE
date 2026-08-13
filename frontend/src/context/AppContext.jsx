@@ -94,6 +94,12 @@ export function expressionForRanking(state) {
   return expressionFromRank(myRankOf(ranking), ranking.length, achievementRate(state.missions));
 }
 
+// 백엔드 연동 모드에서는 미션을 서버가 만든다. 로컬 mock 생성기는 백엔드 없이 데모할 때만 쓴다.
+// (자세한 이유는 아래 SET_GROUP 주석 참고)
+function newMissionSet(params) {
+  return isBackendEnabled ? [] : generateDailyMissions(params);
+}
+
 function reducer(state, action) {
   switch (action.type) {
     // 로그인/회원가입 시 auth를 제외한 나머지는 초기화한다. 이걸 안 하면 로그아웃 없이 다른 계정으로
@@ -112,6 +118,11 @@ function reducer(state, action) {
 
     // 미션은 그룹(챌린지)이 있어야 의미가 있으므로 그룹이 만들어지는 시점에 처음 생성함 —
     // 이때 그룹에서 정한 미션 시작 시간을 바로 반영해서 도착 스케줄을 잡음.
+    //
+    // 단 백엔드 연동 모드에서는 미션의 주인이 서버다(AI가 목표·신체정보를 보고 만든다).
+    // 여기서 로컬 미션을 만들어 넣으면 화면에 잠깐 보였다가 sync()가 서버 세트로 갈아끼우면서
+    // 미션이 저절로 바뀐 것처럼 보이고, 그 사이 다른 그룹원에게는 서버 세트가 보여
+    // 같은 사람의 오늘 미션이 서로 다르게 표시된다. 미션이 바뀌는 건 날짜가 바뀔 때뿐이어야 한다.
     case 'SET_GROUP': {
       const missionHour = action.missionHour ?? DEFAULT_MISSION_HOUR;
       const missionMinute = action.missionMinute ?? DEFAULT_MISSION_MINUTE;
@@ -126,7 +137,7 @@ function reducer(state, action) {
           missionHour,
           missionMinute,
         },
-        missions: generateDailyMissions({ goal: state.onboarding.goal, missionHour, missionMinute, firstUnlocksNow: true }),
+        missions: newMissionSet({ goal: state.onboarding.goal, missionHour, missionMinute, firstUnlocksNow: true }),
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
         challengeSummary: null,
@@ -173,7 +184,7 @@ function reducer(state, action) {
       // 온보딩은 이제 그룹 생성/참여 "이후"에 진행됨 — 그룹이 이미 있으면 그때까지 목표(goal)를
       // 몰라서 fallback 풀로 만들어둔 미션을, 방금 알게 된 goal 기준으로 다시 만든다.
       const missions = state.group
-        ? generateDailyMissions({
+        ? newMissionSet({
             goal: onboarding.goal,
             missionHour: state.group.missionHour,
             missionMinute: state.group.missionMinute,
@@ -294,7 +305,7 @@ function reducer(state, action) {
       // 같은 그룹으로 계속하기는 종/신체정보/목표가 이미 있으므로 온보딩을 다시 밟지 않고
       // 여기서 바로 새 사이클의 미션을 생성함 (SET_ONBOARDING과 동일한 생성 로직 재사용).
       const group = state.group ? { ...state.group, startedAt: Date.now() } : null;
-      const missions = generateDailyMissions({
+      const missions = newMissionSet({
         goal: state.onboarding.goal,
         missionHour: group?.missionHour,
         missionMinute: group?.missionMinute,
@@ -335,7 +346,7 @@ function reducer(state, action) {
         );
       }
 
-      const missions = generateDailyMissions({
+      const missions = newMissionSet({
         goal: state.onboarding.goal,
         missionHour: state.group.missionHour,
         missionMinute: state.group.missionMinute,
