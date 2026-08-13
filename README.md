@@ -345,15 +345,95 @@ localhost는 심사위원 본인 컴퓨터를 가리키므로 **서버를 전혀
 
 ---
 
+## 배포 (Railway + Vercel)
+
+**순서가 중요합니다.** 백엔드와 프론트가 서로의 주소를 알아야 하는데, 주소는 배포해야 생깁니다.
+그래서 백엔드를 먼저 띄우고 → 그 주소를 프론트에 넣고 → 프론트 주소를 다시 백엔드 CORS에 넣습니다.
+
+### 1단계. Railway에 백엔드 배포
+
+1. Railway에서 **New Project → Deploy from GitHub repo → `RISE-server`** 선택 (브랜치 `main`)
+   - 저장소 루트의 `Dockerfile`을 자동으로 인식합니다.
+2. 같은 프로젝트에 **New → Database → MySQL** 추가
+3. 백엔드 서비스의 **Variables**에 아래를 넣습니다.
+
+| 변수 | 값 |
+|---|---|
+| `SPRING_PROFILES_ACTIVE` | `prod` |
+| `DB_URL` | `jdbc:mysql://${{MySQL.MYSQLHOST}}:${{MySQL.MYSQLPORT}}/${{MySQL.MYSQLDATABASE}}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Seoul` |
+| `DB_USERNAME` | `${{MySQL.MYSQLUSER}}` |
+| `DB_PASSWORD` | `${{MySQL.MYSQLPASSWORD}}` |
+| `JWT_SECRET` | `openssl rand -hex 32` 로 만든 64자 문자열 |
+| `OPENAI_API_KEY` | 팀장이 발급한 키 |
+| `DEMO_SEED` | `true` |
+
+> `${{MySQL.*}}`는 Railway가 MySQL 애드온 값을 대신 채워주는 문법입니다. 직접 타이핑하지 말고
+> Variables 화면의 참조 기능을 쓰세요.
+
+4. **Settings → Networking → Generate Domain**으로 공개 주소를 만듭니다.
+5. `https://<주소>/swagger-ui.html`이 열리면 성공입니다.
+
+### 2단계. Vercel에 프론트 배포
+
+1. Vercel에서 **Add New → Project → `RISE-client`** 선택 (브랜치 `main`)
+2. **Root Directory를 `frontend`로 지정** — 이걸 빠뜨리면 빌드가 실패합니다.
+3. **Environment Variables**에 1단계에서 만든 백엔드 주소를 넣습니다.
+
+```
+VITE_API_BASE_URL = https://<Railway에서 만든 주소>
+```
+
+> 이 값은 **빌드 시점에 코드에 박히므로**, 나중에 바꾸면 반드시 재배포(Redeploy)해야 합니다.
+
+### 3단계. 백엔드 CORS에 프론트 주소 등록
+
+Railway 백엔드 Variables에 추가하고 재배포합니다.
+
+| 변수 | 값 |
+|---|---|
+| `CORS_ALLOWED_ORIGINS` | `https://<Vercel 주소>` |
+
+이걸 안 넣으면 모든 출처가 허용된 채로 돌아갑니다(동작은 하지만 열려 있음).
+
+### 4단계. 확인
+
+프론트 주소에 접속해 `test@withu.app` / `withu1234` 로 로그인 →
+MY 화면에 미션이 뜨고, 그룹 탭에서 Day 7 결과가 보이면 연동 성공입니다.
+
+### 로컬에서 배포 이미지 검증하는 법
+
+Docker로 실제 배포와 같은 조건을 재현할 수 있습니다(빈 DB 기준).
+
+```bash
+docker build -t withu-server .
+docker run -p 18080:8080 \
+  -e SPRING_PROFILES_ACTIVE=prod \
+  -e DB_URL="jdbc:mysql://host.docker.internal:3306/withu_deploy?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Seoul" \
+  -e DB_USERNAME=root -e DB_PASSWORD= \
+  -e JWT_SECRET="$(openssl rand -hex 32)" \
+  -e DEMO_SEED=true \
+  withu-server
+```
+
+> 이미 로컬에서 `gradle bootRun`이 같은 DB를 쓰고 있으면 스키마 갱신 단계에서 서로 락을 물고
+> 멈춥니다. 검증할 때는 로컬 서버를 끄거나 위처럼 별도 DB를 쓰세요.
+
+---
+
 ## 남은 일 (우선순위 순)
 
-1. **배포** — 배포처 미정 (Railway 또는 클라우드타입 검토 중). Dockerfile 아직 없음.
-   환경변수는 위 [배포 전 반드시 해야 할 것](#️-배포-전-반드시-해야-할-것-안-하면-서버가-안-뜨거나-뚫립니다) 표 참고.
-2. **`main` 브랜치 병합** — 마감(8/21) 전에 반드시.
+1. **실제 배포 실행** — Dockerfile과 절차는 위 [배포](#배포-railway--vercel)에 정리돼 있고,
+   로컬 Docker로 검증까지 마쳤습니다. Railway/Vercel 계정에서 연결만 하면 됩니다.
+2. **프론트 초기 로딩 용량** — `vite-plugin-singlefile`이 이미지까지 HTML 하나에 넣어
+   첫 화면이 **14MB(gzip 10MB)** 입니다. 플러그인을 빼면 초기 로딩이 약 100KB로 줄고
+   이미지는 필요할 때 받습니다. 웹 배포에는 빼는 편이 낫지만, 단일 파일 데모 용도로
+   일부러 넣은 것일 수 있어 프론트 담당자 확인이 필요합니다.
 3. **기획 확인 필요** — 그룹 랭킹 기준이 PRD 10에는 '주간 달성률'인데 구현·프론트 모두
    '오늘 달성률'입니다. 기획자 판단이 필요해 임의로 바꾸지 않았습니다.
 4. **PRD 대비 남은 소소한 것** — 코인 획득 중 '하루 전체 달성'·'연속 달성' 보너스.
    단 PRD 6.15/8은 코인·상점을 UI 목업으로 규정하므로 우선순위 낮음.
+
+> `main` 병합은 완료했습니다. 두 저장소 모두 `main`에 최신 코드가 올라가 있습니다.
 
 ---
 
