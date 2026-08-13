@@ -19,6 +19,9 @@ public interface MissionRepository extends JpaRepository<Mission, Long> {
 
     boolean existsByUserIdAndMissionDate(Long userId, LocalDate missionDate);
 
+    /** 그룹을 떠날 때 그 사이클에 속한 미션을 지운다. 남겨두면 새 그룹에서 그대로 이어져 보인다. */
+    void deleteByUserIdAndMissionDateGreaterThanEqual(Long userId, LocalDate from);
+
     /** 챌린지 사이클 전체(시작일~종료일)의 미션 — 최종 달성률 계산에 사용. */
     List<Mission> findByUserIdInAndMissionDateBetween(List<Long> userIds, LocalDate from, LocalDate to);
 }

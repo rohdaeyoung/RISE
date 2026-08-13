@@ -19,6 +19,9 @@ public interface MealRepository extends JpaRepository<Meal, Long> {
     /** 그룹 피드에 그룹원들의 오늘 인증 사진을 함께 보여주기 위한 조회. */
     List<Meal> findByUserIdInAndMealDateOrderByIdAsc(List<Long> userIds, LocalDate mealDate);
 
+    /** 그룹을 떠날 때 그 사이클에 속한 식단 기록을 지운다. */
+    void deleteByUserIdAndMealDateGreaterThanEqual(Long userId, LocalDate from);
+
     /** 챌린지 사이클 동안 인증한 식단 사진 — 결과 화면의 사진 모아보기에 사용. */
     List<Meal> findByUserIdAndMealDateBetweenOrderByIdAsc(Long userId, LocalDate from, LocalDate to);
 }
