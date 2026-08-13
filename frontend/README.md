@@ -4,6 +4,27 @@ AI 기반 개인 맞춤 건강 미션과 그룹 동기부여를 결합한 힐링
 
 친구들과 그룹을 이루어 각자 AI가 생성한 맞춤 건강 미션을 수행하고, 식단 사진을 인증하면 캐릭터의 표정과 성장으로 결과를 확인할 수 있습니다.
 
+> ## 이어받는 사람(그리고 AI)에게
+>
+> **현재 상태**: 백엔드(`RISE-server`) 연동까지 끝났고, 브라우저에서 전 기능 동작을 확인했습니다.
+> mock 모드도 그대로 살아 있어서 백엔드 없이 프론트만 띄워도 전체 플로우가 돌아갑니다.
+> 남은 건 배포입니다.
+>
+> **작업 전 알아둘 것**
+> - **mock 코드를 지우지 마세요.** 백엔드 없이 데모(Netlify 정적 배포)하기 위해 일부러 남긴
+>   구조입니다. 전환 지점은 `src/api/client.js`의 `isBackendEnabled` 한 곳뿐입니다.
+> - **서버가 주는 사진 경로는 `fileUrl()`로 감싸세요.** 서버는 `/api/files/{id}` 상대경로만
+>   주는데 프론트는 다른 origin에서 돌아가서, 그대로 `<img src>`에 넣으면 이미지가 깨집니다.
+> - **캐릭터 표정 규칙(`expressionFromRank`)은 백엔드 `ExpressionPolicy`와 쌍입니다.**
+>   한쪽만 고치면 화면과 서버 값이 어긋나니 둘 다 같이 고쳐야 합니다.
+> - **진행일(Day n/7)은 서버의 `currentDay`가 원본입니다.** 기기 시계로 계산하면 그룹원마다
+>   다른 날짜가 보입니다. 로컬 계산은 mock 모드 전용 폴백입니다.
+> - **코인·의상·보유 목록의 원본은 서버입니다.** 로컬 상태만 믿으면 새로고침 시 사라집니다.
+>
+> API 계약을 바꿀 때는 `src/api/*.js`의 매핑 함수와 백엔드 DTO를 **양쪽 다** 확인하세요.
+> 실제로 "프론트는 그 필드를 쓰는데 서버가 안 준다" 유형의 버그가 여러 건 나왔고,
+> 이건 API 응답만 봐서는 안 보이고 브라우저로 화면을 봐야 발견됩니다.
+
 ## 기술 스택
 
 - Vite + React 19 + React Router
@@ -48,16 +69,33 @@ src/
   pages/        # 라우트별 화면
 ```
 
-## 백엔드 연동 현황
+## 백엔드 연동
 
-현재 `src/api/`의 각 파일은 백엔드 없이 동작하도록 mock으로 구현되어 있습니다. 실제 연동 시 아래 API로 교체가 필요합니다.
+프론트는 **백엔드 없이도 단독으로 동작**하고, 환경변수 하나로 실제 백엔드에 붙습니다.
 
-| 파일 | 현재 | 연동 시 |
+```bash
+# 백엔드 연동 모드 — frontend/.env.local 생성
+VITE_API_BASE_URL=http://localhost:8080
+
+# mock 모드 — 위 값을 비우거나 .env.local을 지우면 됨 (기본값)
+```
+
+| 모드 | 조건 | 동작 |
 |---|---|---|
-| `authApi.js` | localStorage 가짜 유저 테이블 | `POST /api/auth/signup`, `POST /api/auth/login` |
-| `groupApi.js` | 코드 형식만 검증, 항상 "나 혼자" 그룹 반환 | `POST /api/groups`, `POST /api/groups/join` |
-| `missionApi.js` | 목표별 고정 풀에서 미션 3개 추출 | GPT-4o 기반 개인 맞춤 미션 생성 |
-| `mealApi.js` | 랜덤 달성/미달성 판정 | GPT-4o Vision 식단 분석 |
+| **mock** | `VITE_API_BASE_URL` 없음 | localStorage 기반. 백엔드/DB 없이 프론트만 띄워도 전체 플로우 체험 가능 (Netlify 정적 배포용) |
+| **백엔드 연동** | `VITE_API_BASE_URL` 설정 | 실제 서버 호출. AI 미션 생성·식단 분석은 GPT-4o가 수행 |
+
+전환 지점은 `src/api/client.js`의 `isBackendEnabled` 한 곳이고, 각 api 모듈이 이 값을 보고 분기합니다.
+페이지 컴포넌트는 두 모드에서 동일하게 동작하므로, 백엔드 작업과 프론트 작업을 서로 막지 않고 진행할 수 있습니다.
+
+| 파일 | mock 모드 | 백엔드 연동 시 |
+|---|---|---|
+| `authApi.js` | localStorage 가짜 유저 테이블 | `POST /api/auth/signup`, `POST /api/auth/login` (JWT 발급) |
+| `groupApi.js` | 코드 형식만 검증, 항상 "나 혼자" 그룹 | `POST /api/groups`, `/join` — 실제 그룹원 목록 |
+| `missionApi.js` | 목표별 고정 풀에서 미션 3개 추출 | `POST /api/missions/today` — GPT-4o 개인 맞춤 생성 |
+| `mealApi.js` | 랜덤 달성/미달성 판정 | `POST /api/meals/{slot}/analyze` — GPT-4o Vision 분석 |
+| `challengeApi.js` | 리듀서가 로컬로 결과 계산 | `POST /api/challenges/end` — 서버가 순위·보상 정산 |
+| `profileApi.js` | (미사용) | 캐릭터·온보딩·상점·랭킹 |
 
 자세한 화면별 동작과 백엔드 전달 사항은 [`DEVLOG.md`](./DEVLOG.md), 전체 기획은 [`docs/PRD.md`](./docs/PRD.md)를 참고하세요.
 

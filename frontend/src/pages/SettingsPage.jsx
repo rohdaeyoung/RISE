@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, ChevronRight, Frown } from 'lucide-react';
 import { MAX_NICKNAME_LENGTH, useAppDispatch, useAppState } from '../context/AppContext';
+import { saveNickname } from '../api/profileApi';
+import { logout } from '../api/authApi';
 
 export default function SettingsPage() {
   const state = useAppState();
@@ -12,16 +14,21 @@ export default function SettingsPage() {
   const [nicknameSaved, setNicknameSaved] = useState(false);
 
   function handleLogout() {
+    // 로컬 상태만 지우면 접근 토큰이 기기에 그대로 남는다. 공용 기기에서 다음 사람이
+    // 그 토큰으로 계정에 접근할 수 있으므로 반드시 함께 지운다.
+    logout();
     dispatch({ type: 'LOGOUT' });
     navigate('/');
   }
 
   function handleDeleteAccount() {
+    logout();
     dispatch({ type: 'DELETE_ACCOUNT' });
     navigate('/');
   }
 
   function handleSaveNickname() {
+    saveNickname(nickname).catch(() => {});
     dispatch({ type: 'SET_NICKNAME', nickname });
     setNicknameSaved(true);
     setTimeout(() => setNicknameSaved(false), 1200);

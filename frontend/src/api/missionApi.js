@@ -1,4 +1,6 @@
-// AI 일일 미션 생성 mock. 백엔드 연동 시 GPT-4o 기반 생성 API로 교체될 자리.
+import { api } from './client';
+
+// AI 일일 미션 생성 mock. 백엔드가 연결되면 아래 fetchOrCreateTodayMissions()가 대신 쓰인다.
 //   generateDailyMissions -> POST /api/missions/today { goal, gender, age, height, weight, history }
 // 지금은 목표(goal) 하나만 보고 정해진 풀에서 식단 2개 + 생활습관 1개를 뽑는 규칙표로 대체함.
 // 신체정보(gender/age/height/weight)는 실제 AI 연동 시 kcal·영양 기준을 세분화하는 데 쓰임.
@@ -112,10 +114,55 @@ export function nextDifficulty(achievementRate) {
   return 'down';
 }
 
-// 생활습관 미션 인증 사진 AI 확인 mock. 백엔드 연동 시 POST /api/missions/:id/verify (multipart)로 교체.
+// 생활습관 미션 인증 사진 AI 확인.
 // 식단 미션과 달리 목표적합도 판단이 필요 없는 단순 완료 인증이라 항상 성공 처리.
+// 실제 미션 완료(코인 지급 포함)는 백엔드 모드에서 completeMission()이 담당한다.
 export function analyzeMissionPhoto() {
   return new Promise((resolve) => {
     setTimeout(() => resolve({ verified: true }), 900);
   });
+}
+
+// ---------------------------------------------------------------------------
+// 백엔드 연동 (VITE_API_BASE_URL이 설정된 경우에만 사용됨)
+// ---------------------------------------------------------------------------
+
+// 백엔드 미션 응답을 프론트 상태가 쓰는 모양으로 변환.
+// 백엔드는 unlockTime을 "12:30:00" 형태로 주고, null이면 "지금 바로 열림"을 뜻한다.
+function toMission(m) {
+  if (!m.unlockTime) {
+    return {
+      id: String(m.id),
+      type: m.type.toLowerCase(),
+      title: m.title,
+      done: m.done,
+      unlockHour: null,
+      unlockMinute: null,
+      unlockLabel: '지금',
+    };
+  }
+  const [hour, minute] = m.unlockTime.split(':').map(Number);
+  return {
+    id: String(m.id),
+    type: m.type.toLowerCase(),
+    title: m.title,
+    done: m.done,
+    unlockHour: hour,
+    unlockMinute: minute,
+    unlockLabel: formatClock(hour * 60 + minute).label,
+  };
+}
+
+// 오늘의 AI 미션을 생성(없으면)하고 받아온다 — 백엔드가 GPT로 실제 생성.
+export function fetchOrCreateTodayMissions() {
+  return api.post('/api/missions/today').then((data) => data.missions.map(toMission));
+}
+
+export function fetchTodayMissions() {
+  return api.get('/api/missions/today').then((data) => data.missions.map(toMission));
+}
+
+// 생활습관 미션 완료 처리 (코인 지급은 서버가 담당).
+export function completeMission(missionId) {
+  return api.post(`/api/missions/${missionId}/verify`);
 }

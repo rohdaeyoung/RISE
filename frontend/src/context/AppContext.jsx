@@ -1,5 +1,14 @@
-import { createContext, useContext, useEffect, useReducer } from 'react';
-import { DEFAULT_MISSION_HOUR, DEFAULT_MISSION_MINUTE, generateDailyMissions } from '../api/missionApi';
+import { createContext, useCallback, useContext, useEffect, useReducer } from 'react';
+import {
+  DEFAULT_MISSION_HOUR,
+  DEFAULT_MISSION_MINUTE,
+  fetchOrCreateTodayMissions,
+  generateDailyMissions,
+} from '../api/missionApi';
+import { isBackendEnabled } from '../api/client';
+import { fetchCharacter, fetchMe, fetchOnboarding } from '../api/profileApi';
+import { fetchMyGroup } from '../api/groupApi';
+import { fetchTodayMeals } from '../api/mealApi';
 
 const STORAGE_KEY = 'withu_state';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -98,8 +107,12 @@ export function expressionForRanking(state) {
 
 function reducer(state, action) {
   switch (action.type) {
+    // 로그인/회원가입 시 auth를 제외한 나머지는 초기화한다. 이걸 안 하면 로그아웃 없이 다른 계정으로
+    // 들어왔을 때 앞 사람의 그룹·캐릭터·코인이 그대로 남아 보인다(한 기기를 나눠 쓰는 경우).
+    // 백엔드 연동 시에는 로그인 직후 동기화가 서버 값으로 채우고, mock 모드에서도 계정이 바뀌면
+    // 처음부터 시작하는 게 맞다.
     case 'LOGIN_SUCCESS':
-      return { ...state, auth: { userId: action.userId, email: action.email } };
+      return { ...initialState, auth: { userId: action.userId, email: action.email } };
 
     case 'LOGOUT':
       return initialState;
@@ -228,6 +241,15 @@ function reducer(state, action) {
         todayPhoto: action.photo ?? state.todayPhoto,
         character: { ...state.character, expression: expressionForRanking(nextState) },
       };
+    }
+
+    // 서버에 기록된 오늘의 식단으로 맞춘다. LOG_MEAL이 방금 반영한 것과 같은 내용이지만,
+    // 새로고침·기기 변경 후에도 인증 표시가 남고 그룹원이 보는 것과 어긋나지 않게 하는 건 이쪽이다.
+    case 'SET_MEALS': {
+      const latestPhoto = ['dinner', 'lunch', 'breakfast']
+        .map((key) => action.meals[key]?.photo)
+        .find(Boolean);
+      return { ...state, meals: action.meals, todayPhoto: latestPhoto ?? state.todayPhoto };
     }
 
     case 'COMPLETE_MISSION': {
@@ -364,6 +386,56 @@ function reducer(state, action) {
       };
     }
 
+    // ── 아래 3개는 백엔드 연동 모드 전용 ──────────────────────────────────
+    // 서버가 진실의 원천이므로 로컬에서 계산한 값을 서버 값으로 덮어쓴다.
+    // mock 모드에서는 이 액션들이 아예 디스패치되지 않아 기존 동작이 그대로 유지된다.
+
+    case 'SET_MISSIONS': {
+      const nextState = { ...state, missions: action.missions };
+      return {
+        ...nextState,
+        character: { ...nextState.character, expression: expressionForRanking(nextState) },
+      };
+    }
+
+    // 코인과 캐릭터(종/의상/보유 의상)의 원본은 서버다. 특히 보유 의상을 안 받아오면
+    // 상점에서 산 의상이 새로고침 후 사라진 것처럼 보인다. 표정만은 예외로 로컬 계산값을 유지한다
+    // (달성률이 바뀌는 즉시 반영돼야 하는데 서버 값은 다음 동기화까지 한 박자 늦기 때문).
+    case 'SET_ACCOUNT':
+      return {
+        ...state,
+        coins: action.coins ?? state.coins,
+        nickname: action.nickname ?? state.nickname,
+        challengeCoins: action.challengeCoins ?? state.challengeCoins,
+        character: action.character
+          ? { ...state.character, ...action.character, expression: state.character.expression }
+          : state.character,
+      };
+
+    // 서버에 저장된 그룹·온보딩을 로컬에 복원한다. 다른 기기나 새 브라우저에서 로그인하면
+    // 로컬에는 아무것도 없어서, 이게 없으면 이미 그룹에 속해 있는데도 "그룹 만들기" 화면이 뜬다.
+    // 네트워크 오류와 구분이 안 되므로 여기서는 채우기만 하고 지우지는 않는다.
+    case 'RESTORE_SESSION': {
+      const next = { ...state };
+      if (action.group) next.group = { ...(state.group ?? {}), ...action.group };
+      if (action.onboarding?.goal) next.onboarding = { ...state.onboarding, ...action.onboarding };
+      return next;
+    }
+
+    // 서버에서 받은 그룹원 목록과 진행일을 함께 반영한다. 진행일(currentDay)은 서버가 계산한 값을
+    // 그대로 써야 그룹원 모두가 같은 날짜를 보고, 7일차 종료 시트도 동시에 뜬다.
+    case 'SET_GROUP_MEMBERS':
+      return {
+        ...state,
+        group: state.group
+          ? { ...state.group, members: action.members, currentDay: action.currentDay ?? state.group.currentDay }
+          : state.group,
+      };
+
+    // 서버가 정산한 챌린지 결과를 그대로 결과 화면에 넘긴다.
+    case 'SET_CHALLENGE_SUMMARY':
+      return { ...state, challengeSummary: action.summary };
+
     case 'RESET':
       return initialState;
 
@@ -374,6 +446,63 @@ function reducer(state, action) {
 
 const AppStateContext = createContext(null);
 const AppDispatchContext = createContext(null);
+const AppSyncContext = createContext(() => Promise.resolve());
+
+// 백엔드 연동 모드에서 서버 상태(미션/코인/그룹원)를 주기적으로 가져와 로컬 상태에 반영한다.
+// mock 모드(VITE_API_BASE_URL 미설정)에서는 아무 일도 하지 않으므로 프론트 단독 실행에 영향이 없다.
+const SYNC_INTERVAL_MS = 15_000;
+
+function useBackendSync(state, dispatch) {
+  const loggedIn = Boolean(state.auth.userId);
+  const inGroup = Boolean(state.group);
+  const hasGoal = Boolean(state.onboarding.goal);
+  const myUserId = state.auth.userId;
+
+  const sync = useCallback(async () => {
+    if (!isBackendEnabled || !loggedIn) return;
+    try {
+      const [me, character] = await Promise.all([fetchMe(), fetchCharacter().catch(() => null)]);
+      if (me || character) {
+        dispatch({ type: 'SET_ACCOUNT', coins: me?.coins, nickname: me?.nickname, character });
+      }
+
+      // 로컬에 그룹이 없어도 항상 물어본다 — 서버가 소속의 원본이라, 로컬 상태를 조건으로 걸면
+      // 새 기기에서 로그인했을 때 이미 속한 그룹을 영영 못 찾는다. (403이면 정말 그룹이 없는 것)
+      const group = await fetchMyGroup({ myUserId }).catch(() => null);
+      if (group) {
+        let goalKnown = hasGoal;
+        if (!inGroup) {
+          const onboarding = await fetchOnboarding().catch(() => null);
+          goalKnown = goalKnown || Boolean(onboarding?.goal);
+          dispatch({ type: 'RESTORE_SESSION', group, onboarding });
+        } else {
+          dispatch({ type: 'SET_GROUP_MEMBERS', members: group.members, currentDay: group.currentDay });
+        }
+
+        // 온보딩을 마친 뒤에만 미션이 생성될 수 있다(AI가 목표/신체정보를 입력으로 받음).
+        if (goalKnown) {
+          const missions = await fetchOrCreateTodayMissions();
+          dispatch({ type: 'SET_MISSIONS', missions });
+        }
+
+        // 식단 인증도 서버 기록을 따른다 — 새로고침이나 기기 변경으로 인증 표시가 사라지지 않게.
+        const meals = await fetchTodayMeals().catch(() => null);
+        if (meals) dispatch({ type: 'SET_MEALS', meals });
+      }
+    } catch {
+      // 네트워크 오류 시에는 마지막으로 받은 로컬 상태를 그대로 유지한다.
+    }
+  }, [dispatch, loggedIn, inGroup, hasGoal, myUserId]);
+
+  useEffect(() => {
+    if (!isBackendEnabled || !loggedIn) return undefined;
+    sync();
+    const id = setInterval(sync, SYNC_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [sync, loggedIn]);
+
+  return sync;
+}
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadState);
@@ -384,15 +513,21 @@ export function AppProvider({ children }) {
 
   // 실제 시간 기준으로 날짜가 넘어갔는지 주기적으로 확인 — 앱을 계속 켜둔 채로도 자정을 넘기면
   // 반영되도록 마운트 시 1회 + 1분 간격으로 재확인. 그룹이 없거나 날짜가 안 바뀌었으면 리듀서가 그대로 반환.
+  // 백엔드 모드에서는 서버가 미션/날짜를 관리하므로 로컬 재생성을 돌리지 않는다.
   useEffect(() => {
+    if (isBackendEnabled) return undefined;
     dispatch({ type: 'SYNC_DAY' });
     const id = setInterval(() => dispatch({ type: 'SYNC_DAY' }), 60_000);
     return () => clearInterval(id);
   }, []);
 
+  const sync = useBackendSync(state, dispatch);
+
   return (
     <AppStateContext.Provider value={state}>
-      <AppDispatchContext.Provider value={dispatch}>{children}</AppDispatchContext.Provider>
+      <AppDispatchContext.Provider value={dispatch}>
+        <AppSyncContext.Provider value={sync}>{children}</AppSyncContext.Provider>
+      </AppDispatchContext.Provider>
     </AppStateContext.Provider>
   );
 }
@@ -407,6 +542,12 @@ export function useAppDispatch() {
   const ctx = useContext(AppDispatchContext);
   if (!ctx) throw new Error('useAppDispatch must be used within AppProvider');
   return ctx;
+}
+
+// 서버 상태를 즉시 다시 받아오고 싶을 때 쓴다(미션 인증 직후 등).
+// mock 모드에서는 아무 일도 하지 않는 no-op.
+export function useAppSync() {
+  return useContext(AppSyncContext);
 }
 
 export function achievementRate(missions) {
@@ -473,8 +614,11 @@ export function memberColorIndex(memberId, members = []) {
 }
 
 // 7일 챌린지 진행일(1~7). 실제 경과 시간 기준으로 계산 — 임의로 넘길 수 없음.
+// 백엔드 연동 시에는 서버가 계산한 currentDay를 그대로 쓴다. 진행일은 그룹원 모두에게 같아야 하는
+// 값이라 기기별 시계로 따로 계산하면 사람마다 다른 날짜가 보일 수 있기 때문.
 export function dayIndexOf(group) {
   if (!group) return 0;
+  if (group.currentDay != null) return group.currentDay;
   return Math.min(CHALLENGE_LENGTH_DAYS, Math.floor((Date.now() - group.startedAt) / DAY_MS) + 1);
 }
 

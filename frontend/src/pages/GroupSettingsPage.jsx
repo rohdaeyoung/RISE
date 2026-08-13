@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, ChevronRight, LogOut } from 'lucide-react';
 import { DEFAULT_MISSION_HOUR, DEFAULT_MISSION_MINUTE, formatClock } from '../api/missionApi';
 import { MAX_GROUP_NAME_LENGTH, useAppDispatch, useAppState } from '../context/AppContext';
+import { leaveGroup, updateGroupSettings } from '../api/groupApi';
 import MissionTimePicker from '../components/MissionTimePicker';
 
 export default function GroupSettingsPage() {
@@ -30,19 +31,30 @@ export default function GroupSettingsPage() {
 
   const currentLabel = formatClock(group.missionHour * 60 + group.missionMinute).label;
 
+  // 방 설정은 그룹원 전체가 공유하는 값이라 서버에 반드시 보내야 한다.
+  // 화면 상태만 바꾸면 나에게만 잠깐 반영됐다가 다음 동기화 때 서버 값으로 되돌아간다.
   function handleSave() {
     const trimmedName = name.trim();
-    if (trimmedName && trimmedName !== group.name) {
-      dispatch({ type: 'SET_GROUP_NAME', name: trimmedName });
-    }
-    dispatch({ type: 'SET_MISSION_TIME', missionHour, missionMinute });
-    setSaved(true);
-    setTimeout(() => navigate('/group'), 600);
+    const changedName = trimmedName && trimmedName !== group.name ? trimmedName : null;
+
+    updateGroupSettings({ name: changedName, missionHour, missionMinute })
+      .catch(() => {})
+      .finally(() => {
+        if (changedName) dispatch({ type: 'SET_GROUP_NAME', name: changedName });
+        dispatch({ type: 'SET_MISSION_TIME', missionHour, missionMinute });
+        setSaved(true);
+        setTimeout(() => navigate('/group'), 600);
+      });
   }
 
+  // 서버에서도 탈퇴시키지 않으면 그룹 소속이 그대로 남아, 다음 동기화가 그룹을 도로 불러온다.
   function handleLeaveGroup() {
-    dispatch({ type: 'LEAVE_GROUP' });
-    navigate('/my');
+    leaveGroup()
+      .catch(() => {})
+      .finally(() => {
+        dispatch({ type: 'LEAVE_GROUP' });
+        navigate('/my');
+      });
   }
 
   return (

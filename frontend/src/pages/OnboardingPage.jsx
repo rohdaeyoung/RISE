@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dumbbell, Salad, Sprout } from 'lucide-react';
 import { AGE_RANGE, HEIGHT_RANGE, WEIGHT_RANGE, useAppDispatch } from '../context/AppContext';
+import { submitOnboarding } from '../api/profileApi';
 
 const GOAL_OPTIONS = [
   { value: 'diet', label: '다이어트', Icon: Salad },
@@ -33,19 +34,21 @@ export default function OnboardingPage() {
       setStepIdx(stepIdx + 1);
       return;
     }
-    dispatch({
-      type: 'SET_ONBOARDING',
-      onboarding: {
-        goal: form.goal,
-        gender: form.gender,
-        age: Number(form.age),
-        height: Number(form.height),
-        weight: Number(form.weight),
-      },
+    const onboarding = {
+      goal: form.goal,
+      gender: form.gender,
+      age: Number(form.age),
+      height: Number(form.height),
+      weight: Number(form.weight),
+    };
+    dispatch({ type: 'SET_ONBOARDING', onboarding });
+    // 백엔드 모드에서는 이 정보가 AI 미션 생성의 입력값이 되므로 서버에 먼저 저장한다.
+    // 저장이 끝나면 AppContext의 동기화가 서버에서 생성된 미션을 받아온다.
+    submitOnboarding(onboarding).finally(() => {
+      // 캐릭터는 이미 회원가입 직후에 골랐고, 온보딩은 그룹 생성/참여 다음 단계라
+      // 끝나면 곧장 그룹 피드로 간다.
+      navigate('/group');
     });
-    // 캐릭터는 이미 회원가입 직후에 골랐고, 온보딩은 그룹 생성/참여 다음 단계라
-    // 끝나면 곧장 그룹 피드로 간다.
-    navigate('/group');
   }
 
   // 입력을 강제로 고쳐쓰지 않음 — 사용자는 범위 밖의 숫자(예: 몸무게 18)도 자유롭게 입력할 수 있고,

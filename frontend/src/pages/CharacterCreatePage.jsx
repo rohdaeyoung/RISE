@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MAX_NICKNAME_LENGTH, resolveHomeRoute, useAppDispatch, useAppState } from '../context/AppContext';
+import { createCharacter, saveNickname } from '../api/profileApi';
 import CharacterAvatar, { SPECIES_META } from '../components/CharacterAvatar';
 
 const SPECIES_OPTIONS = Object.keys(SPECIES_META);
@@ -13,13 +14,27 @@ export default function CharacterCreatePage() {
   const [nickname, setNickname] = useState('');
 
   const nicknameValid = nickname.trim().length > 0;
+  const existingSpecies = state.character.species;
+
+  // 새 기기에서 로그인하면 캐릭터 정보가 서버에서 한 박자 늦게 도착해, 그 사이 이 화면으로 넘어온다.
+  // 이미 만들어둔 캐릭터가 있는데 다시 고르라고 물으면 안 되므로 복원되는 즉시 홈으로 보낸다.
+  useEffect(() => {
+    if (existingSpecies) navigate(resolveHomeRoute(state), { replace: true });
+    // state 전체를 의존성에 넣으면 매 동기화마다 실행되므로 종(species)만 본다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingSpecies]);
 
   // 캐릭터 선택은 회원가입 직후 1회 필수 단계 — 끝나면 그냥 일반 홈으로.
   function handleStart() {
     if (!nicknameValid) return;
-    dispatch({ type: 'SET_CHARACTER', species });
-    dispatch({ type: 'SET_NICKNAME', nickname });
-    navigate(resolveHomeRoute({ ...state, character: { ...state.character, species } }));
+    // 백엔드 모드에서는 캐릭터를 서버에 만들어 계정에 귀속시킨다(mock 모드에서는 no-op).
+    // 이미 만들어져 있어도(재진입) 로컬 진행은 막지 않는다.
+    // 닉네임도 서버에 올려야 그룹 피드·랭킹에서 다른 사람에게 이름이 보인다(mock 모드에서는 no-op).
+    Promise.all([createCharacter(species), saveNickname(nickname).catch(() => {})]).finally(() => {
+      dispatch({ type: 'SET_CHARACTER', species });
+      dispatch({ type: 'SET_NICKNAME', nickname });
+      navigate(resolveHomeRoute({ ...state, character: { ...state.character, species } }));
+    });
   }
 
   return (

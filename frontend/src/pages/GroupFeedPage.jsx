@@ -14,6 +14,8 @@ import {
   useAppDispatch,
   useAppState,
 } from '../context/AppContext';
+import { endChallenge } from '../api/challengeApi';
+import { isBackendEnabled } from '../api/client';
 import CharacterAvatar from '../components/CharacterAvatar';
 import ChallengeSummarySheet from '../components/ChallengeSummarySheet';
 import CommentSheet from '../components/CommentSheet';
@@ -58,6 +60,18 @@ export default function GroupFeedPage() {
     ...group.members,
   ];
   while (slots.length < MAX_SLOTS) slots.push(null);
+
+  // 백엔드 모드에서는 서버가 최종 순위를 매기고 순위별 보상까지 지급한 결과를 받아온다.
+  // mock 모드에서는 기존처럼 리듀서가 로컬로 결과를 계산한다.
+  function handleEndChallenge() {
+    if (!isBackendEnabled) {
+      dispatch({ type: 'END_CHALLENGE' });
+      return;
+    }
+    endChallenge()
+      .then((summary) => dispatch({ type: 'SET_CHALLENGE_SUMMARY', summary }))
+      .catch(() => dispatch({ type: 'END_CHALLENGE' }));
+  }
 
   function copyCode() {
     navigator.clipboard?.writeText(group.code).then(() => {
@@ -132,7 +146,7 @@ export default function GroupFeedPage() {
           </Link>
           {lastDay && (
             <button
-              onClick={() => dispatch({ type: 'END_CHALLENGE' })}
+              onClick={handleEndChallenge}
               className="w-full bg-white text-brand-dark rounded-2xl py-3 text-sm font-semibold mt-4 flex items-center justify-center gap-1.5"
             >
               <PartyPopper size={16} /> 7일 챌린지 결과 보기

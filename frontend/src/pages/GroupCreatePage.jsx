@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PartyPopper } from 'lucide-react';
-import { createGroup, MIN_MEMBERS, MAX_MEMBERS } from '../api/groupApi';
+import { createGroup, MIN_MEMBERS, MAX_MEMBERS, updateGroupSettings } from '../api/groupApi';
 import { DEFAULT_MISSION_HOUR, DEFAULT_MISSION_MINUTE } from '../api/missionApi';
-import { MAX_GROUP_NAME_LENGTH, useAppDispatch } from '../context/AppContext';
+import { MAX_GROUP_NAME_LENGTH, useAppDispatch, useAppState } from '../context/AppContext';
 import MissionTimePicker from '../components/MissionTimePicker';
 
 export default function GroupCreatePage() {
+  const state = useAppState();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [group, setGroup] = useState(null);
@@ -15,9 +16,17 @@ export default function GroupCreatePage() {
   const [missionHour, setMissionHour] = useState(DEFAULT_MISSION_HOUR);
   const [missionMinute, setMissionMinute] = useState(DEFAULT_MISSION_MINUTE);
 
+  const myUserId = state.auth.userId;
+
+  // 초대 코드를 먼저 보여줘야 하므로 화면 진입 시점에 그룹을 만든다.
+  // 방 이름과 미션 시작 시간은 아래에서 정한 뒤 "시작하기"에서 반영한다.
+  // StrictMode는 개발 모드에서 effect를 두 번 실행하므로, 그대로 두면 그룹이 2개 만들어진다.
+  const createdRef = useRef(false);
   useEffect(() => {
-    createGroup().then(setGroup);
-  }, []);
+    if (createdRef.current) return;
+    createdRef.current = true;
+    createGroup({ myUserId }).then(setGroup);
+  }, [myUserId]);
 
   function copyCode() {
     navigator.clipboard?.writeText(group.code).then(() => {
@@ -30,9 +39,12 @@ export default function GroupCreatePage() {
 
   function handleContinue() {
     if (!nameValid) return;
-    dispatch({ type: 'SET_GROUP', id: group.id, code: group.code, name, members: group.members, missionHour, missionMinute });
-    // 방장은 그룹을 만든 다음에 목표/신체정보 온보딩을 진행함(로그인 직후가 아니라).
-    navigate('/onboarding');
+    // 백엔드 모드에서는 화면 진입 때 만들어둔 그룹에 방 이름/미션 시간을 반영한다(mock 모드에서는 no-op).
+    updateGroupSettings({ name, missionHour, missionMinute }).finally(() => {
+      dispatch({ type: 'SET_GROUP', id: group.id, code: group.code, name, members: group.members, missionHour, missionMinute });
+      // 방장은 그룹을 만든 다음에 목표/신체정보 온보딩을 진행함(로그인 직후가 아니라).
+      navigate('/onboarding');
+    });
   }
 
   if (!group) {
