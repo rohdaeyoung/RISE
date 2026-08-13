@@ -398,13 +398,25 @@ function reducer(state, action) {
       return next;
     }
 
-    // 서버에서 받은 그룹원 목록과 진행일을 함께 반영한다. 진행일(currentDay)은 서버가 계산한 값을
-    // 그대로 써야 그룹원 모두가 같은 날짜를 보고, 7일차 종료 시트도 동시에 뜬다.
+    // 서버에서 받은 그룹 정보를 반영한다. 진행일(currentDay)은 서버가 계산한 값을 그대로 써야
+    // 그룹원 모두가 같은 날짜를 보고, 7일차 종료 시트도 동시에 뜬다.
+    //
+    // 방 이름과 미션 시작 시간도 함께 갱신한다. 이걸 안 하면 참여할 때 받은 값이 그대로 굳는다.
+    // 방을 만들 때는 초대 코드를 먼저 보여주려고 이름 없이 방을 만든 뒤("건강한 친구들") 나중에
+    // 이름을 정하므로, 그 사이에 참여한 사람은 방장이 지은 이름을 영영 못 보게 된다.
+    // 나중에 누가 방 이름이나 미션 시간을 바꿔도 마찬가지다 — 그룹 설정은 모두에게 같아야 한다.
     case 'SET_GROUP_MEMBERS':
       return {
         ...state,
         group: state.group
-          ? { ...state.group, members: action.members, currentDay: action.currentDay ?? state.group.currentDay }
+          ? {
+              ...state.group,
+              members: action.members,
+              currentDay: action.currentDay ?? state.group.currentDay,
+              name: action.name ?? state.group.name,
+              missionHour: action.missionHour ?? state.group.missionHour,
+              missionMinute: action.missionMinute ?? state.group.missionMinute,
+            }
           : state.group,
       };
 
@@ -466,7 +478,14 @@ function useBackendSync(state, dispatch) {
           goalKnown = goalKnown || Boolean(onboarding?.goal);
           dispatch({ type: 'RESTORE_SESSION', group, onboarding });
         } else {
-          dispatch({ type: 'SET_GROUP_MEMBERS', members: group.members, currentDay: group.currentDay });
+          dispatch({
+            type: 'SET_GROUP_MEMBERS',
+            members: group.members,
+            currentDay: group.currentDay,
+            name: group.name,
+            missionHour: group.missionHour,
+            missionMinute: group.missionMinute,
+          });
         }
 
         // 온보딩을 마친 뒤에만 미션이 생성될 수 있다(AI가 목표/신체정보를 입력으로 받음).
