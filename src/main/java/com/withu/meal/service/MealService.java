@@ -45,7 +45,9 @@ public class MealService {
         requireImage(photo);
 
         String goal = currentGoal(userId);
-        MealAnalysisResult result = analyzeSafely(photo, foodName, portion, goal);
+        // 어떤 미션을 인증하려는 사진인지 함께 넘겨야 AI가 같은 기준으로 판정한다.
+        String missionTitle = missionService.pendingDietMissionTitle(userId);
+        MealAnalysisResult result = analyzeSafely(photo, foodName, portion, goal, missionTitle);
         String photoUrl = fileStorageService.store(photo);
 
         Meal meal = Meal.builder()
@@ -83,9 +85,10 @@ public class MealService {
      * 식단 판정은 AI가 실제로 봐야 의미가 있으므로 mock으로 대체해 아무 값이나 지어내지 않고,
      * "잠시 후 다시" 라고 명확히 알려 재시도하게 한다.
      */
-    private MealAnalysisResult analyzeSafely(MultipartFile photo, String foodName, String portion, String goal) {
+    private MealAnalysisResult analyzeSafely(MultipartFile photo, String foodName, String portion, String goal,
+                                             String missionTitle) {
         try {
-            return mealVisionAiClient.analyze(photo, foodName, portion, goal);
+            return mealVisionAiClient.analyze(photo, foodName, portion, goal, missionTitle);
         } catch (CustomException e) {
             throw e;
         } catch (RuntimeException e) {

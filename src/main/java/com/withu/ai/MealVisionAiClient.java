@@ -8,7 +8,11 @@ import org.springframework.web.multipart.MultipartFile;
  */
 public interface MealVisionAiClient {
 
-    MealAnalysisResult analyze(MultipartFile photo, String foodName, String portion, String goal);
+    /**
+     * @param missionTitle 이 사진으로 인증하려는 오늘의 식단 미션 제목. 남은 미션이 없으면 null.
+     *                     achieved는 이 미션을 기준으로 판단해야 한다.
+     */
+    MealAnalysisResult analyze(MultipartFile photo, String foodName, String portion, String goal, String missionTitle);
 
     record MealAnalysisResult(boolean achieved, InternalFit internalFit) {
     }

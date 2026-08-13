@@ -85,6 +85,19 @@ public class MissionService {
     }
 
     /**
+     * 이 사진으로 인증하게 될 식단 미션의 제목. 없으면 null.
+     *
+     * <p>AI에게 "오늘의 식단 미션을 달성했는지" 물으려면 그 미션이 무엇인지 알려줘야 한다.
+     * 제목 없이 물어보면 AI가 기준을 스스로 지어내서, 목표에 맞는 식사인데도 미달성으로 판정되곤 했다.
+     */
+    public String pendingDietMissionTitle(Long userId) {
+        return missionRepository
+                .findFirstByUserIdAndMissionDateAndTypeAndDoneFalseOrderByIdAsc(userId, LocalDate.now(), MissionType.DIET)
+                .map(Mission::getTitle)
+                .orElse(null);
+    }
+
+    /**
      * 식단 인증이 달성으로 판정되면 오늘 미완료 식단 미션 중 하나를 완료 처리한다
      * (프론트 AppContext.jsx LOG_MEAL 리듀서와 동일한 규칙).
      */

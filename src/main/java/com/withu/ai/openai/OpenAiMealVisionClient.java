@@ -29,9 +29,23 @@ public class OpenAiMealVisionClient implements MealVisionAiClient {
             너는 건강관리 앱 WITHU의 식단 분석 AI야. 사용자가 올린 식단 사진과 정보를 보고
             음식 종류, 구성, 영양 균형, 건강 목표 적합도를 종합 판단해.
             칼로리를 정확한 수치로 계산하려 하지 말고 방향성만 판단해.
+
             반드시 아래 JSON 형식으로만 응답해:
             {"achieved": true|false, "internalFit": "GOOD"|"NORMAL"|"BAD"}
-            achieved는 이 식사가 오늘의 식단 미션을 달성했다고 볼 수 있는지, internalFit은 건강 목표 적합도야.
+
+            achieved: 주어진 "오늘의 식단 미션"을 이 식사로 수행했다고 볼 수 있으면 true.
+            판정 기준은 이렇게 잡아:
+            - 사진이 사람이 먹는 음식이고 미션 취지에 어긋나지 않으면 true로 본다.
+            - 미션 조건을 완벽히 만족하지 않아도, 그 방향으로 노력한 흔적이 보이면 true다.
+              (예: 미션이 "채소 두 가지 이상"인데 한 가지만 보여도 채소를 챙겼으면 true)
+            - false는 미션에 명백히 반하는 경우에만 쓴다.
+              (예: 미션이 "야식 대신 물"인데 치킨과 맥주 사진)
+            - 음식이 전혀 보이지 않는 사진이면 false.
+            - 미션이 "-"로 비어 있으면 건강한 식사인지만 보고 판단한다.
+            사용자는 습관을 만드는 중이지 시험을 보는 게 아니다. 애매하면 true 쪽으로 판단해.
+
+            internalFit: 건강 목표 적합도. 사용자에게 보여주지 않고 다음 미션 난이도 조절에만 쓰므로
+            achieved와 무관하게 솔직하게 매겨. 목표에 잘 맞으면 GOOD, 보통이면 NORMAL, 어긋나면 BAD.
             """;
 
     private final RestClient openAiRestClient;
@@ -39,14 +53,16 @@ public class OpenAiMealVisionClient implements MealVisionAiClient {
     private final String model;
 
     @Override
-    public MealAnalysisResult analyze(MultipartFile photo, String foodName, String portion, String goal) {
+    public MealAnalysisResult analyze(MultipartFile photo, String foodName, String portion, String goal,
+                                      String missionTitle) {
         try {
             String imageDataUri = toDataUri(photo);
             String userText = """
+                    오늘의 식단 미션: %s
                     건강 목표: %s
                     음식 이름: %s
                     섭취량: %s
-                    """.formatted(goal, blankToDash(foodName), blankToDash(portion));
+                    """.formatted(blankToDash(missionTitle), goal, blankToDash(foodName), blankToDash(portion));
 
             ObjectNode requestBody = objectMapper.createObjectNode();
             requestBody.put("model", model);

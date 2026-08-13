@@ -14,7 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class MockMealVisionAiClient implements MealVisionAiClient {
 
     @Override
-    public MealAnalysisResult analyze(MultipartFile photo, String foodName, String portion, String goal) {
+    public MealAnalysisResult analyze(MultipartFile photo, String foodName, String portion, String goal, String missionTitle) {
         double r = ThreadLocalRandom.current().nextDouble();
         InternalFit fit = r < 0.6 ? InternalFit.GOOD : r < 0.85 ? InternalFit.NORMAL : InternalFit.BAD;
         boolean achieved = fit != InternalFit.BAD;
