@@ -302,17 +302,19 @@ function reducer(state, action) {
     }
 
     case 'CONTINUE_CHALLENGE': {
-      // 같은 그룹으로 계속하기는 종/신체정보/목표가 이미 있으므로 온보딩을 다시 밟지 않고
-      // 여기서 바로 새 사이클의 미션을 생성함 (SET_ONBOARDING과 동일한 생성 로직 재사용).
+      // 새 사이클은 목표·신체정보를 다시 받는다(PRD: 온보딩은 그룹 사이클마다 갱신).
+      // 7일 동안 몸이나 목표가 달라졌을 수 있고, 그래야 AI가 새 기준으로 미션을 만든다.
+      // 온보딩을 비우면 resolveHomeRoute가 온보딩 화면으로 보낸다.
       const group = state.group ? { ...state.group, startedAt: Date.now() } : null;
       const missions = newMissionSet({
-        goal: state.onboarding.goal,
+        goal: null,
         missionHour: group?.missionHour,
         missionMinute: group?.missionMinute,
       });
       return {
         ...state,
         group,
+        onboarding: { goal: null, gender: null, age: null, height: null, weight: null },
         missions,
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
