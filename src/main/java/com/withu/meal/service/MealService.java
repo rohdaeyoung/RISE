@@ -43,6 +43,9 @@ public class MealService {
         }
 
         requireImage(photo);
+        if (fileStorageService.isAlreadyUsed(photo)) {
+            throw new CustomException(ErrorCode.PHOTO_ALREADY_USED);
+        }
 
         String goal = currentGoal(userId);
         // 어떤 미션을 인증하려는 사진인지 함께 넘겨야 AI가 같은 기준으로 판정한다.

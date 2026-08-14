@@ -27,16 +27,24 @@ public class StoredFile extends BaseTimeEntity {
     @Column(name = "size_bytes", nullable = false)
     private int sizeBytes;
 
+    /**
+     * 업로드된 원본 파일의 SHA-256. 같은 사진을 다시 인증에 쓰는 것을 막는 데 쓴다.
+     * 축소 후가 아니라 원본 기준이라야 사용자가 올린 파일이 같은지 정확히 판단할 수 있다.
+     */
+    @Column(name = "checksum", length = 64)
+    private String checksum;
+
     @Lob
     @Basic(fetch = FetchType.LAZY)
     @Column(nullable = false, columnDefinition = "LONGBLOB")
     private byte[] data;
 
     @Builder
-    private StoredFile(String id, String contentType, byte[] data) {
+    private StoredFile(String id, String contentType, byte[] data, String checksum) {
         this.id = id;
         this.contentType = contentType;
         this.data = data;
         this.sizeBytes = data.length;
+        this.checksum = checksum;
     }
 }

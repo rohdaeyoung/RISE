@@ -12,6 +12,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.UUID;
 
 /**
@@ -48,9 +51,36 @@ public class FileStorageService {
                 .id(UUID.randomUUID().toString())
                 .contentType(resized.contentType())
                 .data(resized.data())
+                .checksum(checksumOf(original))
                 .build();
         storedFileRepository.save(stored);
         return URL_PREFIX + stored.getId();
+    }
+
+    /**
+     * 예전에 인증에 쓰인 적이 있는 사진인지 확인한다.
+     *
+     * <p>인터넷에서 받은 사진이나 캡처 이미지를 여러 번 우려먹는 것을 막는다. 완벽한 방어는 아니다 —
+     * 다른 사진을 새로 구해오면 그만이다. 다만 같은 파일을 반복해서 쓰는 가장 쉬운 편법은 막힌다.
+     */
+    public boolean isAlreadyUsed(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return false;
+        }
+        try {
+            return storedFileRepository.existsByChecksum(checksumOf(file.getBytes()));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private String checksumOf(byte[] data) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data));
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256은 모든 JVM이 반드시 제공한다. 여기 오면 실행 환경 자체가 잘못된 것이다.
+            throw new IllegalStateException(e);
+        }
     }
 
     public StoredFile load(String id) {

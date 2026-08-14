@@ -39,6 +39,7 @@ public enum ErrorCode {
     MISSION_LOCKED(HttpStatus.CONFLICT, "MISSION_003", "아직 도착하지 않은 미션입니다"),
     MISSION_PHOTO_MISMATCH(HttpStatus.BAD_REQUEST, "MISSION_004", "사진이 미션과 맞지 않아요. 미션을 수행한 사진으로 다시 올려주세요"),
     MISSION_VERIFY_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "MISSION_005", "인증 확인에 실패했어요. 잠시 후 다시 시도해주세요"),
+    PHOTO_ALREADY_USED(HttpStatus.BAD_REQUEST, "FILE_004", "이미 인증에 사용한 사진이에요. 새로 찍은 사진으로 올려주세요"),
 
     // meal
     MEAL_ALREADY_LOGGED(HttpStatus.CONFLICT, "MEAL_001", "이미 인증한 식단입니다"),

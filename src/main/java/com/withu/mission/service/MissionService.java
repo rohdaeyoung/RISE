@@ -91,6 +91,9 @@ public class MissionService {
             throw new CustomException(ErrorCode.MISSION_LOCKED);
         }
         requireImage(photo);
+        if (fileStorageService.isAlreadyUsed(photo)) {
+            throw new CustomException(ErrorCode.PHOTO_ALREADY_USED);
+        }
 
         if (!verifySafely(photo, mission.getTitle()).achieved()) {
             throw new CustomException(ErrorCode.MISSION_PHOTO_MISMATCH);
