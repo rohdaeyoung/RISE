@@ -162,7 +162,12 @@ export function fetchTodayMissions() {
   return api.get('/api/missions/today').then((data) => data.missions.map(toMission));
 }
 
-// 생활습관 미션 완료 처리 (코인 지급은 서버가 담당).
-export function completeMission(missionId) {
-  return api.post(`/api/missions/${missionId}/verify`);
+// 생활습관 미션 인증 (판정·완료·코인 지급 모두 서버가 담당).
+// 사진을 반드시 함께 보내야 한다 — 예전에는 사진 없이 호출해서 서버가 무조건 완료 처리했고,
+// 걷기 미션에 음식 사진을 올려도 인증되어 인증 자체가 의미가 없었다.
+// 사진이 미션과 맞지 않으면 서버가 MISSION_004로 거절하고, 그 메시지를 화면에 그대로 보여준다.
+export function completeMission(missionId, photo) {
+  const form = new FormData();
+  form.append('photo', photo);
+  return api.postForm(`/api/missions/${missionId}/verify`, form);
 }
