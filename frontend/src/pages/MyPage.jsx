@@ -32,6 +32,9 @@ export default function MyPage() {
     !upcoming &&
     missionTime != null &&
     now.getHours() * 60 + now.getMinutes() < missionTime.hour * 60 + missionTime.minute;
+  // 식단 미션은 "미완료 중 첫 번째"만 실제 인증 대상이라(MealUploadPage/서버 판정 규칙과 동일),
+  // 그 미션에만 "사진 인증" 버튼을 활성화해야 카드 제목과 인증 화면 제목이 항상 일치한다.
+  const pendingDietId = state.missions.find((m) => m.type === 'diet' && !m.done)?.id ?? null;
 
   return (
     <div className="px-5 pt-8 pb-24">
@@ -61,7 +64,6 @@ export default function MyPage() {
 
       {/* 캐릭터는 카드/박스에 담기지 않고 페이지 배경 위에 바로 서 있음 */}
       <div className="relative flex flex-col items-center pt-2 pb-5">
-        <div aria-hidden className="absolute top-6 w-56 h-56 rounded-full bg-brand-soft blur-2xl -z-10" />
         <CharacterAvatar
           species={state.character.species}
           expression={state.group ? expressionForRanking(state) : 'normal'}
@@ -123,7 +125,7 @@ export default function MyPage() {
               </div>
             )}
             {missionsToShow.map((m) => (
-              <MissionCard key={m.id} mission={m} nextMealKey={nextMealKey} />
+              <MissionCard key={m.id} mission={m} nextMealKey={nextMealKey} isPendingDiet={m.id === pendingDietId} />
             ))}
             {upcoming && (
               <div className="flex items-center gap-3 rounded-2xl px-4 py-3.5 border border-dashed border-black/10 text-sub">

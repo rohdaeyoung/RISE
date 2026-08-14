@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { CheckCircle2, Sprout, Utensils } from 'lucide-react';
 
-export default function MissionCard({ mission, nextMealKey }) {
+export default function MissionCard({ mission, nextMealKey, isPendingDiet }) {
   const isDiet = mission.type === 'diet';
 
   return (
@@ -29,7 +29,11 @@ export default function MissionCard({ mission, nextMealKey }) {
       {mission.done ? (
         <CheckCircle2 size={20} className="text-brand flex-shrink-0" />
       ) : isDiet ? (
-        nextMealKey ? (
+        !isPendingDiet ? (
+          // 식단 미션은 "미완료 중 첫 번째"만 실제로 판정 대상이라(서버 규칙과 동일),
+          // 차례가 안 된 미션은 눌러도 앞 미션이 인증되어 제목이 어긋나 보인다 — 아예 못 누르게 막는다.
+          <span className="text-xs text-sub whitespace-nowrap">차례를 기다리는 중</span>
+        ) : nextMealKey ? (
           <Link
             to={`/meal/${nextMealKey}`}
             className="text-xs font-semibold text-brand bg-brand/10 rounded-full px-3 py-1.5 whitespace-nowrap"

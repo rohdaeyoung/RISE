@@ -3,21 +3,19 @@ import { useAppDispatch, useAppState, useAppSync } from '../context/AppContext';
 import { buyOutfit, changeSpecies, wearOutfit } from '../api/profileApi';
 import CharacterAvatar, { SPECIES_META } from '../components/CharacterAvatar';
 import CoinIcon from '../components/CoinIcon';
-import formalSetImg from '../assets/shop/formal-set.png';
-import pajamaSetImg from '../assets/shop/pajama-set.png';
-import picnicSetImg from '../assets/shop/picnic-set.png';
-import sportSetImg from '../assets/shop/sport-set.png';
 
 const SPECIES_OPTIONS = Object.keys(SPECIES_META);
 
 // 실제 캐릭터 아트가 있는 의상 세트만 노출. 기본 모습(everyday)은 캐릭터 아트에 이미 포함돼 있어
 // 별도 상품으로 팔지 않음 — 나머지 세트는 코인으로 구매.
+// 카드 썸네일은 별도 아이콘 이미지가 아니라 CharacterAvatar를 그대로 써서, 실제 착용 시 보이는
+// 모습과 상점 미리보기가 항상 일치하도록 함.
 // 구매(BUY_OUTFIT)와 착용(SET_OUTFIT) 모두 AppContext 리듀서에서 실제로 코인/보유 상태를 갱신함.
 const OUTFIT_SETS = [
-  { id: 'formal', label: '포멀 세트', image: formalSetImg, price: 30 },
-  { id: 'pajama', label: '파자마 세트', image: pajamaSetImg, price: 35 },
-  { id: 'picnic', label: '피크닉 세트', image: picnicSetImg, price: 40 },
-  { id: 'sport', label: '스포츠 세트', image: sportSetImg, price: 50 },
+  { id: 'pajama', label: '파자마 세트', price: 30 },
+  { id: 'sailor', label: '세일러 세트', price: 35 },
+  { id: 'coat', label: '코트 세트', price: 40 },
+  { id: 'detective', label: '탐정 세트', price: 50 },
 ];
 
 const CARD_STYLES = ['bg-user-4/15', 'bg-user-1/15', 'bg-user-2/15', 'bg-user-3/15'];
@@ -81,7 +79,7 @@ export default function ShopPage() {
 
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-ink">캐릭터 꾸미기</h2>
-        <span className="text-[11px] text-sub">종 변경은 무료예요</span>
+        <span className="text-[11px] text-sub">캐릭터 변경은 무료예요</span>
       </div>
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1 justify-center">
         {SPECIES_OPTIONS.map((value) => (
@@ -115,7 +113,7 @@ export default function ShopPage() {
               className={`relative rounded-2xl border border-gray-300 ${style} p-4 flex flex-col items-center gap-2 shadow-card`}
             >
               <div className="w-20 h-20 rounded-2xl bg-white/70 flex items-center justify-center shadow-card mt-1 overflow-hidden">
-                <img src={item.image} alt={item.label} className="w-full h-full object-contain" draggable={false} />
+                <CharacterAvatar species={species} outfit={item.id} expression="good" size="sm" framed={false} breathing={false} />
               </div>
               <p className="text-sm font-semibold text-ink text-center leading-tight">{item.label}</p>
               <p className={`text-xs font-semibold text-brand-dark flex items-center gap-1 ${isOwned ? 'invisible' : ''}`}>
@@ -124,15 +122,14 @@ export default function ShopPage() {
               </p>
               {isOwned ? (
                 <button
-                  onClick={() => handleEquip(item.id)}
-                  disabled={isEquipped}
+                  onClick={() => handleEquip(isEquipped ? 'everyday' : item.id)}
                   className={`w-full mt-1 text-xs font-semibold rounded-full px-3 py-2 transition-colors ${
                     isEquipped
                       ? 'bg-brand-soft text-brand-dark'
                       : 'text-white bg-brand shadow-card'
                   }`}
                 >
-                  {isEquipped ? '착용 중' : '착용하기'}
+                  {isEquipped ? '착용 해제' : '착용하기'}
                 </button>
               ) : (
                 <button

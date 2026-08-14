@@ -26,8 +26,8 @@ export default function MissionVerifyPage() {
     setStatus('loading');
     setError('');
 
-    // 사진을 서버로 보내면 AI가 미션과 맞는 사진인지 판정하고, 통과했을 때만 완료 처리한다.
-    // 판정에 실패하면 요청이 거절되므로 여기서 완료로 표시해서는 안 된다.
+    // 백엔드 모드에서는 미션 완료/코인 지급을 서버가 처리한다 — 사진을 반드시 함께 보내야
+    // 서버가 미션과 맞는지 AI로 판정한다. 맞지 않으면 MISSION_004로 거절된다.
     const verify = isBackendEnabled ? completeMission(mission.id, file) : analyzeMissionPhoto(file);
 
     Promise.all([resizeImageFile(file), verify])
@@ -38,9 +38,10 @@ export default function MissionVerifyPage() {
         sync();
       })
       .catch((err) => {
+        // 거절됐을 때 완료로 표시하면 안 된다 — 서버가 준 사유를 그대로 보여준다.
         setPreview(null);
         setStatus('idle');
-        setError(err?.message || '인증에 실패했어요. 다시 시도해주세요');
+        setError(err?.message || '인증에 실패했어요. 잠시 후 다시 시도해주세요');
         // 같은 파일을 다시 고를 수 있도록 입력값을 비운다(안 비우면 onChange가 안 걸린다).
         e.target.value = '';
       });
@@ -79,9 +80,7 @@ export default function MissionVerifyPage() {
         )}
       </label>
 
-      {error && (
-        <p className="text-center text-sm text-red-500 bg-red-50 rounded-2xl px-4 py-3 mb-4">{error}</p>
-      )}
+      {error && <p className="text-xs text-warn text-center mb-4">{error}</p>}
 
       {status === 'loading' && (
         <div className="text-center text-sub text-sm py-4">

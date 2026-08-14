@@ -15,6 +15,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const MEAL_LABELS = { breakfast: '아침', lunch: '점심', dinner: '저녁' };
 
+// 그룹 피드 인증 사진에 남길 수 있는 이모티콘 반응 종류.
+export const REACTION_EMOJIS = ['❤️', '👍', '😂', '😮', '😢'];
+
 // 나이/키/몸무게 허용 범위 — 마이너스 입력이 저장되지 않도록 온보딩 화면과 리듀서 양쪽에서
 // 이 값을 기준으로 clamp함. 키/몸무게는 상한 없이 최소값만 강제(마이너스 방지).
 export const AGE_RANGE = { min: 1, max: 100 };
@@ -32,6 +35,7 @@ export const DEFAULT_GROUP_NAME = '건강한 친구들';
 export const CHALLENGE_LENGTH_DAYS = 7;
 export const MAX_GROUP_NAME_LENGTH = 10;
 export const MAX_NICKNAME_LENGTH = 10;
+export const MAX_COMMENT_LENGTH = 200;
 
 const initialState = {
   auth: { userId: null, email: null },
@@ -53,6 +57,16 @@ const initialState = {
   // 오늘 올린 미션/식단 인증 사진 중 가장 최근 것 — 그룹 피드의 "내 인증 사진" 썸네일로 씀.
   // 새 사이클/새 날짜가 되면 meals와 함께 비워짐.
   todayPhoto: null,
+  // 그룹 피드 인증 사진에 대한 이모티콘 반응 — { [memberId]: { myEmoji, counts: { [emoji]: count } } }.
+  // 한 사람당 하나의 이모티콘만 선택 가능(다시 누르면 취소, 다른 이모티콘 누르면 교체).
+  // todayPhoto와 마찬가지로 "오늘의 인증 피드" 기준이라 새 사이클/새 날짜가 되면 함께 비워짐.
+  reactions: {},
+  // 오늘의 인증 피드에 남긴 댓글 — [{ id, text, authorLabel, createdAt }]. reactions와 마찬가지로
+  // "오늘" 기준이라 새 사이클/새 날짜가 되면 함께 비워짐. createdAt(ms epoch)으로 작성 일시를 표시.
+  comments: [],
+  // 댓글 시트를 마지막으로 열었을 때의 comments.length — 그 이후 쌓인 댓글 수만큼만
+  // "안 읽은 댓글"로 세어 빨간 배지를 띄움. comments와 마찬가지로 새 사이클/새 날짜에 함께 리셋.
+  lastSeenCommentCount: 0,
   challengeSummary: null,
   // 지나간 날짜의 달성 기록 스냅샷 — [{ day, rate, missionsDone, missionsTotal }]. 그룹 생성/재시작 시 비움.
   // 오늘(진행 중인 날)은 여기 안 들어있고 missions/meals로 실시간 계산됨 — dailyHistory.length + 1이 오늘.
@@ -140,6 +154,9 @@ function reducer(state, action) {
         missions: newMissionSet({ goal: state.onboarding.goal }),
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
+        reactions: {},
+        comments: [],
+        lastSeenCommentCount: 0,
         challengeSummary: null,
         challengeCoins: 0,
         dailyHistory: [],
@@ -165,6 +182,7 @@ function reducer(state, action) {
     // 미션과 식단은 그룹 사이클에 속한 기록이라 그룹을 떠나면 같이 비운다.
     // 남겨두면 그룹이 없는데도 MY 화면에 지난 그룹의 미션이 그대로 떠 있고,
     // 그걸 인증하려 하면 서버는 그룹원이 아니라며 거절해 아무 반응이 없는 것처럼 보인다.
+    // 반응/댓글도 "오늘의 인증 피드" 기준이라 그룹이 없어지면 함께 비운다.
     case 'LEAVE_GROUP':
       return {
         ...state,
@@ -173,6 +191,9 @@ function reducer(state, action) {
         missions: [],
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
+        reactions: {},
+        comments: [],
+        lastSeenCommentCount: 0,
       };
 
     case 'SET_ONBOARDING': {
@@ -269,11 +290,49 @@ function reducer(state, action) {
       };
     }
 
+    // 그룹 피드에서 남의 인증 사진에 이모티콘 반응을 토글. 사진마다(memberId 기준) 내가 고른 이모티콘 1개와
+    // 이모티콘별 카운트를 들고 있음 — 같은 이모티콘을 다시 누르면 취소, 다른 이모티콘을 누르면 교체.
+    case 'TOGGLE_REACTION': {
+      const current = state.reactions[action.memberId] || { myEmoji: null, counts: {} };
+      const counts = { ...current.counts };
+      if (current.myEmoji) {
+        counts[current.myEmoji] = Math.max(0, (counts[current.myEmoji] || 0) - 1);
+        if (counts[current.myEmoji] === 0) delete counts[current.myEmoji];
+      }
+      const myEmoji = current.myEmoji === action.emoji ? null : action.emoji;
+      if (myEmoji) counts[myEmoji] = (counts[myEmoji] || 0) + 1;
+      return { ...state, reactions: { ...state.reactions, [action.memberId]: { myEmoji, counts } } };
+    }
+
+    // 오늘의 인증 피드에 댓글 남기기. 작성자는 항상 나(닉네임 미설정 시 "나")이고,
+    // createdAt은 몇일 몇시 몇분에 남겼는지 표시하는 데 씀.
+    case 'ADD_COMMENT': {
+      const text = action.text?.trim().slice(0, MAX_COMMENT_LENGTH);
+      if (!text) return state;
+      const comment = {
+        id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        text,
+        authorLabel: memberLabel({ nickname: state.nickname }, true),
+        createdAt: Date.now(),
+      };
+      return { ...state, comments: [...state.comments, comment] };
+    }
+
+    // 댓글 시트를 열어서 지금까지의 댓글을 다 봤다는 표시 — 안 읽은 댓글 배지를 지움.
+    case 'MARK_COMMENTS_SEEN':
+      return { ...state, lastSeenCommentCount: state.comments.length };
+
     case 'END_CHALLENGE': {
       const rate = achievementRate(state.missions);
       // 최종 결과의 "최종 순위"는 오늘 하루 %가 아니라 이번 7일간 모은 포인트 기준으로 다시 정렬.
       const ranking = buildRanking(state).sort((a, b) => b.points - a.points);
       const rank = myRankOf(ranking);
+      // 캐릭터 표정은 항상 이번에 계산한 최종 순위와 일치하도록 다시 계산 — state.character.expression을
+      // 그대로 두면 마지막 활동 시점의 표정(예: 이전 사이클의 잔여 표정)과 어긋날 수 있음.
+      // ChallengeSummarySheet는 이 값이 아니라 ranking의 "나" 항목(expression)을 그려서 카드에 반영하므로
+      // ranking 쪽도 함께 갱신해야 한다.
+      const expression = expressionFromRank(rank, ranking.length, rate);
+      const finalRanking = ranking.map((p) => (p.isMe ? { ...p, expression } : p));
       return {
         ...state,
         challengeSummary: {
@@ -281,15 +340,13 @@ function reducer(state, action) {
           // "완주"는 며칠째 끝냈는지가 아니라 7일 챌린지를 다 돌았다는 뜻이라 항상 챌린지 길이 그대로.
           days: CHALLENGE_LENGTH_DAYS,
           coinsEarned: state.challengeCoins,
-          ranking,
+          ranking: finalRanking,
           rank,
-          totalParticipants: ranking.length,
+          totalParticipants: finalRanking.length,
           mealPhotos: Object.entries(state.meals)
             .filter(([, v]) => v?.photo)
             .map(([key, v]) => ({ mealKey: key, mealLabel: MEAL_LABELS[key], photo: v.photo })),
-          // 캐릭터 표정은 항상 이번에 계산한 순위와 일치하도록 다시 계산 — state.character.expression을
-          // 그대로 복사하면 다른 시점(예: 이전 사이클의 잔여 표정)과 어긋날 수 있음.
-          character: { ...state.character, expression: expressionFromRank(rank, ranking.length, rate) },
+          character: { ...state.character, expression },
           groupName: state.group?.name ?? DEFAULT_GROUP_NAME,
           members: state.group?.members ?? [],
         },
@@ -309,6 +366,9 @@ function reducer(state, action) {
         missions,
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
+        reactions: {},
+        comments: [],
+        lastSeenCommentCount: 0,
         challengeSummary: null,
         challengeCoins: 0,
         dailyHistory: [],
@@ -347,6 +407,9 @@ function reducer(state, action) {
         missions,
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
+        reactions: {},
+        comments: [],
+        lastSeenCommentCount: 0,
         character: { ...state.character, expression: 'normal' },
       };
     }

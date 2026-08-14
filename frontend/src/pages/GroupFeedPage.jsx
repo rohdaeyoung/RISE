@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { Calendar, Camera, CheckCircle2, Clock, Footprints, Medal, PartyPopper, Plus, Settings } from 'lucide-react';
+import { Calendar, Camera, CheckCircle2, Clock, Footprints, Medal, MessageCircle, PartyPopper, Plus, Settings, Smile } from 'lucide-react';
 import {
   achievementRate,
   buildRanking,
@@ -10,6 +10,7 @@ import {
   memberColorIndex,
   memberLabel,
   myRankOf,
+  REACTION_EMOJIS,
   useAppDispatch,
   useAppState,
 } from '../context/AppContext';
@@ -17,8 +18,16 @@ import { endChallenge } from '../api/challengeApi';
 import { isBackendEnabled } from '../api/client';
 import CharacterAvatar from '../components/CharacterAvatar';
 import ChallengeSummarySheet from '../components/ChallengeSummarySheet';
+import CommentSheet from '../components/CommentSheet';
+import heartIcon from '../assets/reactions/heart.png';
+import likeIcon from '../assets/reactions/like.png';
+import funnyIcon from '../assets/reactions/funny.png';
+import wowIcon from '../assets/reactions/wow.png';
+import sadIcon from '../assets/reactions/sad.png';
 
 const MAX_SLOTS = 4;
+// REACTION_EMOJIS(❤️ 👍 😂 😮 😢) 각 항목에 대응하는 커스텀 반응 아이콘.
+const REACTION_ICONS = { '❤️': heartIcon, '👍': likeIcon, '😂': funnyIcon, '😮': wowIcon, '😢': sadIcon };
 // 그룹 피드 카드 배경 — 상점(Shop) 카드와 동일한 파스텔 톤(User Signature Color + 회색 테두리),
 // 동일한 색상 순서(블루 → 옐로우 → 민트 → 핑크)로 통일. 상점(15%)보다 살짝 진하게(25%) 사용.
 const CARD_BG_CLASSES = ['bg-user-4/25', 'bg-user-1/25', 'bg-user-2/25', 'bg-user-3/25'];
@@ -28,6 +37,9 @@ export default function GroupFeedPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [openPickerId, setOpenPickerId] = useState(null);
+  const [showComments, setShowComments] = useState(false);
+  const unreadCommentCount = Math.max(0, state.comments.length - (state.lastSeenCommentCount || 0));
 
   // 그룹 탭을 눌렀는데 아직 그룹이 없으면 그룹 만들기/참여 화면으로 바로 보냄.
   if (!state.group) {
@@ -153,6 +165,21 @@ export default function GroupFeedPage() {
 
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-ink">오늘의 인증 피드</h2>
+        <button
+          onClick={() => {
+            setShowComments(true);
+            dispatch({ type: 'MARK_COMMENTS_SEEN' });
+          }}
+          aria-label="댓글 보기"
+          className="relative inline-flex items-center justify-center text-brand-dark"
+        >
+          <MessageCircle size={18} />
+          {unreadCommentCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-0.5 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
+              {unreadCommentCount > 9 ? '9+' : unreadCommentCount}
+            </span>
+          )}
+        </button>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {slots.map((member, i) => {
@@ -168,19 +195,64 @@ export default function GroupFeedPage() {
             );
           }
           const memberRate = member.isMe ? rate : (member.achievementRate ?? 0);
+          const goToMember = () => (member.isMe ? navigate('/my') : navigate(`/group/member/${member.id}`));
+          const reaction = state.reactions[member.id] || { myEmoji: null, counts: {} };
+          const reactionTotal = Object.values(reaction.counts).reduce((sum, n) => sum + n, 0);
+          const pickerOpen = openPickerId === member.id;
           return (
-            <button
+            <div
               key={member.id}
-              onClick={() => (member.isMe ? navigate('/my') : navigate(`/group/member/${member.id}`))}
-              className={`rounded-2xl border border-gray-300 p-2.5 flex flex-col gap-2 shadow-card transition-transform active:scale-95 ${
+              role="button"
+              tabIndex={0}
+              onClick={goToMember}
+              onKeyDown={(e) => e.key === 'Enter' && goToMember()}
+              className={`rounded-2xl border border-gray-300 p-2.5 flex flex-col gap-2 shadow-card transition-transform active:scale-95 cursor-pointer ${
                 CARD_BG_CLASSES[memberColorIndex(member.id, group.members) % CARD_BG_CLASSES.length]
               }`}
             >
-              <div className="rounded-xl bg-white/70 aspect-square overflow-hidden flex items-center justify-center">
+              <div className="relative rounded-xl bg-white/70 aspect-square overflow-hidden flex items-center justify-center">
                 {member.photo ? (
                   <img src={member.photo} alt="미션 인증 사진" className="w-full h-full object-cover" />
                 ) : (
                   <Camera size={22} className="text-black/20" />
+                )}
+                {/* 내 사진에는 반응을 남길 수 없음 — 남의 인증 사진에만 이모티콘 반응 버튼을 보여줌. */}
+                {member.photo && !member.isMe && (
+                  <div className="absolute bottom-1.5 right-1.5" onClick={(e) => e.stopPropagation()}>
+                    {pickerOpen && (
+                      <div className="absolute bottom-full right-0 mb-1.5 flex items-center gap-0.5 bg-white rounded-full px-1.5 py-1 shadow-card border border-gray-300">
+                        {REACTION_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              dispatch({ type: 'TOGGLE_REACTION', memberId: member.id, emoji });
+                              setOpenPickerId(null);
+                            }}
+                            aria-label={emoji}
+                            className={`w-7 h-7 flex items-center justify-center rounded-full p-1 transition-transform active:scale-90 ${
+                              reaction.myEmoji === emoji ? 'bg-brand-soft' : ''
+                            }`}
+                          >
+                            <img src={REACTION_ICONS[emoji]} alt={emoji} className="w-full h-full object-contain" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setOpenPickerId(pickerOpen ? null : member.id)}
+                      aria-label="반응 남기기"
+                      className={`flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold shadow-card transition-colors ${
+                        reaction.myEmoji ? 'bg-brand-soft text-brand-dark' : 'bg-white/90 text-ink'
+                      }`}
+                    >
+                      {reaction.myEmoji ? (
+                        <img src={REACTION_ICONS[reaction.myEmoji]} alt={reaction.myEmoji} className="w-3.5 h-3.5 object-contain" />
+                      ) : (
+                        <Smile size={13} className="text-black/35" />
+                      )}
+                      {reactionTotal > 0 && reactionTotal}
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-1.5 px-0.5 min-w-0">
@@ -191,12 +263,13 @@ export default function GroupFeedPage() {
                 {memberRate > 0 ? <CheckCircle2 size={12} /> : <Clock size={12} />}
                 오늘 인증 {memberRate}%
               </p>
-            </button>
+            </div>
           );
         })}
       </div>
 
       {state.challengeSummary && <ChallengeSummarySheet summary={state.challengeSummary} />}
+      {showComments && <CommentSheet onClose={() => setShowComments(false)} />}
     </div>
   );
 }
