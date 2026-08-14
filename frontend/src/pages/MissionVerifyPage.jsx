@@ -17,22 +17,31 @@ export default function MissionVerifyPage() {
 
   const [preview, setPreview] = useState(null);
   const [status, setStatus] = useState('idle'); // idle | loading | done
+  const [error, setError] = useState('');
 
   function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file || !mission) return;
 
     setStatus('loading');
+    setError('');
 
-    // 백엔드 모드에서는 미션 완료/코인 지급을 서버가 처리한다(사진은 인증 절차용).
-    const verify = isBackendEnabled ? completeMission(mission.id) : analyzeMissionPhoto(file);
+    // 백엔드 모드에서는 미션 완료/코인 지급을 서버가 처리한다 — 사진을 반드시 함께 보내야
+    // 서버가 미션과 맞는지 AI로 판정한다. 맞지 않으면 MISSION_004로 거절된다.
+    const verify = isBackendEnabled ? completeMission(mission.id, file) : analyzeMissionPhoto(file);
 
-    Promise.all([resizeImageFile(file), verify]).then(([thumbnail]) => {
-      setPreview(thumbnail);
-      setStatus('done');
-      dispatch({ type: 'COMPLETE_MISSION', missionId: mission.id, photo: thumbnail });
-      sync();
-    });
+    Promise.all([resizeImageFile(file), verify])
+      .then(([thumbnail]) => {
+        setPreview(thumbnail);
+        setStatus('done');
+        dispatch({ type: 'COMPLETE_MISSION', missionId: mission.id, photo: thumbnail });
+        sync();
+      })
+      .catch((err) => {
+        // 거절됐을 때 완료로 표시하면 안 된다 — 서버가 준 사유를 그대로 보여준다.
+        setStatus('idle');
+        setError(err?.message || '인증에 실패했어요. 잠시 후 다시 시도해주세요');
+      });
   }
 
   if (!mission) {
@@ -67,6 +76,8 @@ export default function MissionVerifyPage() {
           </span>
         )}
       </label>
+
+      {error && <p className="text-xs text-warn text-center mb-4">{error}</p>}
 
       {status === 'loading' && (
         <div className="text-center text-sub text-sm py-4">

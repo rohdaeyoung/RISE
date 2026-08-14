@@ -83,12 +83,19 @@ function MainLayout() {
         key={displayLocation.pathname}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className={`page-transition min-h-svh ${stage === 'exit' ? 'page-transition-exit' : 'page-transition-enter'}`}
+        className={`page-transition min-h-svh ${
+          stage === 'exit' ? 'page-transition-exit' : stage === 'enter' ? 'page-transition-enter' : ''
+        }`}
         onAnimationEnd={() => {
           if (stage === 'exit') {
             setDisplayLocation(location);
             setDisplayOutlet(outlet);
             setStage('enter');
+          } else if (stage === 'enter') {
+            // 애니메이션이 끝나도 transform: scale(1)이 그대로 남아있으면(animation-fill-mode: forwards)
+            // 이 div가 새로운 stacking context를 만들어서, 그 안의 fixed 모달(댓글 시트 등)이
+            // 바깥의 BottomNav 뒤로 가려진다. 애니메이션이 끝나면 클래스를 완전히 떼어내 transform을 지운다.
+            setStage('idle');
           }
         }}
       >

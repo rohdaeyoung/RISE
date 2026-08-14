@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Heart, Medal, PartyPopper, Plus } from 'lucide-react';
-import { memberColorIndex, useAppDispatch, useAppSync } from '../context/AppContext';
+import { memberColorIndex, useAppDispatch } from '../context/AppContext';
 import { continueChallenge } from '../api/challengeApi';
 import { leaveGroup } from '../api/groupApi';
 import CharacterAvatar from './CharacterAvatar';
@@ -17,18 +17,20 @@ const CARD_BG_CLASSES = ['bg-user-1/15', 'bg-user-2/15', 'bg-user-3/15', 'bg-use
 // 아직 그룹원이 없으면 "참여 대기 중" 빈 슬롯으로 정직하게 표시함(가짜 이름/데이터 없음).
 export default function ChallengeSummarySheet({ summary }) {
   const dispatch = useAppDispatch();
-  const sync = useAppSync();
   const navigate = useNavigate();
 
-  // 백엔드 모드에서는 서버가 새 사이클을 시작(사이클 점수 초기화 + 시작일 갱신)한 뒤
-  // 동기화로 새 미션을 받아온다. mock 모드에서는 리듀서가 로컬로 처리한다.
+  // 새 사이클은 목표·신체정보부터 다시 받는다(PRD: 온보딩은 그룹 사이클마다 갱신).
+  // 서버가 지난 사이클의 미션·식단·온보딩을 지우므로, 여기서 바로 그룹으로 보내면
+  // 온보딩이 없어 미션이 만들어지지 않는다. 온보딩 화면으로 보내야 한다.
+  //
+  // sync()는 부르지 않는다. 온보딩을 지운 직후라 서버에서 받아올 것이 없고,
+  // 온보딩을 마치는 시점에 OnboardingPage가 동기화하면서 새 미션을 받아온다.
   function handleContinue() {
     continueChallenge()
       .catch(() => {})
       .finally(() => {
         dispatch({ type: 'CONTINUE_CHALLENGE' });
-        sync();
-        navigate('/group');
+        navigate('/onboarding');
       });
   }
 
@@ -91,7 +93,15 @@ export default function ChallengeSummarySheet({ summary }) {
                     <span className="text-[10px] font-bold text-ink">{i + 1}</span>
                   )}
                 </span>
-                <CharacterAvatar species={p.species} expression={p.expression} size="md" breathing={false} />
+                {/* outfit을 빼먹으면 상점에서 산 옷을 입고 있어도 결산에서만 기본 옷으로 보인다.
+                    랭킹·그룹 피드는 넘기고 있어서 결산 화면만 캐릭터가 달라 보였다. */}
+                <CharacterAvatar
+                  species={p.species}
+                  expression={p.expression}
+                  outfit={p.outfit}
+                  size="md"
+                  breathing={false}
+                />
                 <p className="text-xs font-semibold text-center text-ink">{p.label}</p>
                 <p className="text-sm font-bold text-ink">{p.points}점</p>
                 {/* 점수만 보면 서로 얼마나 해냈는지 감이 안 와서, 7일 전체 달성률을 함께 보여준다. */}
@@ -116,6 +126,7 @@ export default function ChallengeSummarySheet({ summary }) {
                 key={p.id}
                 species={p.species}
                 expression={p.expression}
+                outfit={p.outfit}
                 size="md"
                 breathing={false}
                 framed={false}

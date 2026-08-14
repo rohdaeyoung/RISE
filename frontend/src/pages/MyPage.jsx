@@ -42,7 +42,6 @@ export default function MyPage() {
 
       {/* 캐릭터는 카드/박스에 담기지 않고 페이지 배경 위에 바로 서 있음 */}
       <div className="relative flex flex-col items-center pt-2 pb-5">
-        <div aria-hidden className="absolute top-6 w-56 h-56 rounded-full bg-brand-soft blur-2xl -z-10" />
         <CharacterAvatar
           species={state.character.species}
           expression={state.group ? expressionForRanking(state) : 'normal'}

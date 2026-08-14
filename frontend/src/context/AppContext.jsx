@@ -64,6 +64,9 @@ const initialState = {
   // 오늘의 인증 피드에 남긴 댓글 — [{ id, text, authorLabel, createdAt }]. reactions와 마찬가지로
   // "오늘" 기준이라 새 사이클/새 날짜가 되면 함께 비워짐. createdAt(ms epoch)으로 작성 일시를 표시.
   comments: [],
+  // 댓글 시트를 마지막으로 열었을 때의 comments.length — 그 이후 쌓인 댓글 수만큼만
+  // "안 읽은 댓글"로 세어 빨간 배지를 띄움. comments와 마찬가지로 새 사이클/새 날짜에 함께 리셋.
+  lastSeenCommentCount: 0,
   challengeSummary: null,
   // 지나간 날짜의 달성 기록 스냅샷 — [{ day, rate, missionsDone, missionsTotal }]. 그룹 생성/재시작 시 비움.
   // 오늘(진행 중인 날)은 여기 안 들어있고 missions/meals로 실시간 계산됨 — dailyHistory.length + 1이 오늘.
@@ -105,6 +108,12 @@ export function expressionForRanking(state) {
   return expressionFromRank(myRankOf(ranking), ranking.length, achievementRate(state.missions));
 }
 
+// 백엔드 연동 모드에서는 미션을 서버가 만든다. 로컬 mock 생성기는 백엔드 없이 데모할 때만 쓴다.
+// (자세한 이유는 아래 SET_GROUP 주석 참고)
+function newMissionSet(params) {
+  return isBackendEnabled ? [] : generateDailyMissions(params);
+}
+
 function reducer(state, action) {
   switch (action.type) {
     // 로그인/회원가입 시 auth를 제외한 나머지는 초기화한다. 이걸 안 하면 로그아웃 없이 다른 계정으로
@@ -123,6 +132,11 @@ function reducer(state, action) {
 
     // 미션은 그룹(챌린지)이 있어야 의미가 있으므로 그룹이 만들어지는 시점에 처음 생성함 —
     // 이때 그룹에서 정한 미션 시작 시간을 바로 반영해서 도착 스케줄을 잡음.
+    //
+    // 단 백엔드 연동 모드에서는 미션의 주인이 서버다(AI가 목표·신체정보를 보고 만든다).
+    // 여기서 로컬 미션을 만들어 넣으면 화면에 잠깐 보였다가 sync()가 서버 세트로 갈아끼우면서
+    // 미션이 저절로 바뀐 것처럼 보이고, 그 사이 다른 그룹원에게는 서버 세트가 보여
+    // 같은 사람의 오늘 미션이 서로 다르게 표시된다. 미션이 바뀌는 건 날짜가 바뀔 때뿐이어야 한다.
     case 'SET_GROUP': {
       const missionHour = action.missionHour ?? DEFAULT_MISSION_HOUR;
       const missionMinute = action.missionMinute ?? DEFAULT_MISSION_MINUTE;
@@ -137,11 +151,12 @@ function reducer(state, action) {
           missionHour,
           missionMinute,
         },
-        missions: generateDailyMissions({ goal: state.onboarding.goal, missionHour, missionMinute, firstUnlocksNow: true }),
+        missions: newMissionSet({ goal: state.onboarding.goal }),
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
         reactions: {},
         comments: [],
+        lastSeenCommentCount: 0,
         challengeSummary: null,
         challengeCoins: 0,
         dailyHistory: [],
@@ -164,8 +179,22 @@ function reducer(state, action) {
       return { ...state, group: { ...state.group, name } };
     }
 
+    // 미션과 식단은 그룹 사이클에 속한 기록이라 그룹을 떠나면 같이 비운다.
+    // 남겨두면 그룹이 없는데도 MY 화면에 지난 그룹의 미션이 그대로 떠 있고,
+    // 그걸 인증하려 하면 서버는 그룹원이 아니라며 거절해 아무 반응이 없는 것처럼 보인다.
+    // 반응/댓글도 "오늘의 인증 피드" 기준이라 그룹이 없어지면 함께 비운다.
     case 'LEAVE_GROUP':
-      return { ...state, group: null, challengeSummary: null };
+      return {
+        ...state,
+        group: null,
+        challengeSummary: null,
+        missions: [],
+        meals: { breakfast: null, lunch: null, dinner: null },
+        todayPhoto: null,
+        reactions: {},
+        comments: [],
+        lastSeenCommentCount: 0,
+      };
 
     case 'SET_ONBOARDING': {
       const incoming = { ...action.onboarding };
@@ -176,12 +205,7 @@ function reducer(state, action) {
       // 온보딩은 이제 그룹 생성/참여 "이후"에 진행됨 — 그룹이 이미 있으면 그때까지 목표(goal)를
       // 몰라서 fallback 풀로 만들어둔 미션을, 방금 알게 된 goal 기준으로 다시 만든다.
       const missions = state.group
-        ? generateDailyMissions({
-            goal: onboarding.goal,
-            missionHour: state.group.missionHour,
-            missionMinute: state.group.missionMinute,
-            firstUnlocksNow: true,
-          })
+        ? newMissionSet({ goal: onboarding.goal })
         : state.missions;
       return {
         ...state,
@@ -294,6 +318,10 @@ function reducer(state, action) {
       return { ...state, comments: [...state.comments, comment] };
     }
 
+    // 댓글 시트를 열어서 지금까지의 댓글을 다 봤다는 표시 — 안 읽은 댓글 배지를 지움.
+    case 'MARK_COMMENTS_SEEN':
+      return { ...state, lastSeenCommentCount: state.comments.length };
+
     case 'END_CHALLENGE': {
       const rate = achievementRate(state.missions);
       // 최종 결과의 "최종 순위"는 오늘 하루 %가 아니라 이번 7일간 모은 포인트 기준으로 다시 정렬.
@@ -322,22 +350,21 @@ function reducer(state, action) {
     }
 
     case 'CONTINUE_CHALLENGE': {
-      // 같은 그룹으로 계속하기는 종/신체정보/목표가 이미 있으므로 온보딩을 다시 밟지 않고
-      // 여기서 바로 새 사이클의 미션을 생성함 (SET_ONBOARDING과 동일한 생성 로직 재사용).
+      // 새 사이클은 목표·신체정보를 다시 받는다(PRD: 온보딩은 그룹 사이클마다 갱신).
+      // 7일 동안 몸이나 목표가 달라졌을 수 있고, 그래야 AI가 새 기준으로 미션을 만든다.
+      // 온보딩을 비우면 resolveHomeRoute가 온보딩 화면으로 보낸다.
       const group = state.group ? { ...state.group, startedAt: Date.now() } : null;
-      const missions = generateDailyMissions({
-        goal: state.onboarding.goal,
-        missionHour: group?.missionHour,
-        missionMinute: group?.missionMinute,
-      });
+      const missions = newMissionSet({ goal: null });
       return {
         ...state,
         group,
+        onboarding: { goal: null, gender: null, age: null, height: null, weight: null },
         missions,
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
         reactions: {},
         comments: [],
+        lastSeenCommentCount: 0,
         challengeSummary: null,
         challengeCoins: 0,
         dailyHistory: [],
@@ -368,11 +395,7 @@ function reducer(state, action) {
         );
       }
 
-      const missions = generateDailyMissions({
-        goal: state.onboarding.goal,
-        missionHour: state.group.missionHour,
-        missionMinute: state.group.missionMinute,
-      });
+      const missions = newMissionSet({ goal: state.onboarding.goal });
 
       return {
         ...state,
@@ -382,6 +405,7 @@ function reducer(state, action) {
         todayPhoto: null,
         reactions: {},
         comments: [],
+        lastSeenCommentCount: 0,
         character: { ...state.character, expression: 'normal' },
       };
     }
@@ -422,13 +446,25 @@ function reducer(state, action) {
       return next;
     }
 
-    // 서버에서 받은 그룹원 목록과 진행일을 함께 반영한다. 진행일(currentDay)은 서버가 계산한 값을
-    // 그대로 써야 그룹원 모두가 같은 날짜를 보고, 7일차 종료 시트도 동시에 뜬다.
+    // 서버에서 받은 그룹 정보를 반영한다. 진행일(currentDay)은 서버가 계산한 값을 그대로 써야
+    // 그룹원 모두가 같은 날짜를 보고, 7일차 종료 시트도 동시에 뜬다.
+    //
+    // 방 이름과 미션 시작 시간도 함께 갱신한다. 이걸 안 하면 참여할 때 받은 값이 그대로 굳는다.
+    // 방을 만들 때는 초대 코드를 먼저 보여주려고 이름 없이 방을 만든 뒤("건강한 친구들") 나중에
+    // 이름을 정하므로, 그 사이에 참여한 사람은 방장이 지은 이름을 영영 못 보게 된다.
+    // 나중에 누가 방 이름이나 미션 시간을 바꿔도 마찬가지다 — 그룹 설정은 모두에게 같아야 한다.
     case 'SET_GROUP_MEMBERS':
       return {
         ...state,
         group: state.group
-          ? { ...state.group, members: action.members, currentDay: action.currentDay ?? state.group.currentDay }
+          ? {
+              ...state.group,
+              members: action.members,
+              currentDay: action.currentDay ?? state.group.currentDay,
+              name: action.name ?? state.group.name,
+              missionHour: action.missionHour ?? state.group.missionHour,
+              missionMinute: action.missionMinute ?? state.group.missionMinute,
+            }
           : state.group,
       };
 
@@ -467,8 +503,22 @@ function useBackendSync(state, dispatch) {
       }
 
       // 로컬에 그룹이 없어도 항상 물어본다 — 서버가 소속의 원본이라, 로컬 상태를 조건으로 걸면
-      // 새 기기에서 로그인했을 때 이미 속한 그룹을 영영 못 찾는다. (403이면 정말 그룹이 없는 것)
-      const group = await fetchMyGroup({ myUserId }).catch(() => null);
+      // 새 기기에서 로그인했을 때 이미 속한 그룹을 영영 못 찾는다.
+      let group = null;
+      let notInGroup = false;
+      try {
+        group = await fetchMyGroup({ myUserId });
+      } catch (e) {
+        // 403은 "당신은 그룹원이 아니다"라는 서버의 확답이다. 네트워크 오류(status 없음)와 달리
+        // 이때는 로컬에 남은 그룹을 지워야 한다. 안 지우면 서버에서는 이미 나갔는데 화면에는
+        // 그룹이 계속 보이고, 그 안의 기능은 전부 403이 나면서 아무것도 안 되는 상태가 된다.
+        notInGroup = e?.status === 403;
+      }
+
+      if (!group && notInGroup && inGroup) {
+        dispatch({ type: 'LEAVE_GROUP' });
+      }
+
       if (group) {
         let goalKnown = hasGoal;
         if (!inGroup) {
@@ -476,7 +526,14 @@ function useBackendSync(state, dispatch) {
           goalKnown = goalKnown || Boolean(onboarding?.goal);
           dispatch({ type: 'RESTORE_SESSION', group, onboarding });
         } else {
-          dispatch({ type: 'SET_GROUP_MEMBERS', members: group.members, currentDay: group.currentDay });
+          dispatch({
+            type: 'SET_GROUP_MEMBERS',
+            members: group.members,
+            currentDay: group.currentDay,
+            name: group.name,
+            missionHour: group.missionHour,
+            missionMinute: group.missionMinute,
+          });
         }
 
         // 온보딩을 마친 뒤에만 미션이 생성될 수 있다(AI가 목표/신체정보를 입력으로 받음).

@@ -19,6 +19,10 @@ export default function MealUploadPage() {
   const [error, setError] = useState('');
 
   const label = MEAL_LABELS[mealKey] || '식사';
+  // 이 사진으로 인증하게 될 식단 미션. 서버도 "오늘 미완료 식단 미션 중 첫 번째"를 기준으로
+  // 판정하므로(MissionService.pendingDietMissionTitle) 같은 규칙으로 골라야 화면과 판정이 맞는다.
+  // 미션 제목을 안 보여주면 모든 미션에서 "아침 사진 업로드"만 떠서 무엇을 찍어야 할지 알 수 없다.
+  const dietMission = state.missions.find((m) => m.type === 'diet' && !m.done);
 
   function handleFile(e) {
     const file = e.target.files?.[0];
@@ -50,8 +54,10 @@ export default function MealUploadPage() {
       </button>
 
       <p className="text-xs font-bold tracking-wide text-brand-dark uppercase mb-1">Meal Check</p>
-      <h1 className="text-lg font-bold text-ink mb-1">{label} 사진 업로드</h1>
-      <p className="text-sm text-sub mb-6">AI가 오늘 미션 달성 여부를 확인해요</p>
+      <h1 className="text-lg font-bold text-ink mb-1">{dietMission ? dietMission.title : `${label} 사진 업로드`}</h1>
+      <p className="text-sm text-sub mb-6">
+        {label} 사진을 올리면 AI가 이 미션을 달성했는지 확인해요
+      </p>
 
       <label className="block rounded-2xl border-2 border-dashed border-brand/20 aspect-square flex items-center justify-center overflow-hidden mb-6 cursor-pointer bg-brand-soft/40">
         <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
@@ -60,7 +66,7 @@ export default function MealUploadPage() {
         ) : (
           <span className="text-sub text-sm flex flex-col items-center gap-2">
             <Camera size={30} />
-            {label} 사진을 선택해주세요
+            {label}에 먹은 음식을 찍어주세요
           </span>
         )}
       </label>
