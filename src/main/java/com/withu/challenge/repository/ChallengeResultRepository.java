@@ -16,4 +16,6 @@ public interface ChallengeResultRepository extends JpaRepository<ChallengeResult
     Optional<ChallengeResult> findByUserIdAndGroupIdAndCycleStartedAt(Long userId, Long groupId, LocalDateTime cycleStartedAt);
 
     List<ChallengeResult> findByUserIdOrderByIdDesc(Long userId);
+
+    void deleteByUserId(Long userId);
 }

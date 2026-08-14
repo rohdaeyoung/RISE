@@ -58,6 +58,19 @@ public class FileStorageService {
     }
 
     /**
+     * 저장 경로({@code /api/files/{id}})로 파일을 지운다. 계정 탈퇴에서 쓴다.
+     *
+     * <p>이미 없는 파일이면 조용히 넘어간다 — 지우는 것이 목적이므로 결과는 같다.
+     */
+    @Transactional
+    public void deleteByUrl(String url) {
+        if (url == null || !url.startsWith(URL_PREFIX)) {
+            return;
+        }
+        storedFileRepository.deleteById(url.substring(URL_PREFIX.length()));
+    }
+
+    /**
      * 예전에 인증에 쓰인 적이 있는 사진인지 확인한다.
      *
      * <p>인터넷에서 받은 사진이나 캡처 이미지를 여러 번 우려먹는 것을 막는다. 완벽한 방어는 아니다 —

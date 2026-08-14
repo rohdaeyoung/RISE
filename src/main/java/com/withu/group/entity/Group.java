@@ -72,6 +72,11 @@ public class Group extends BaseTimeEntity {
         this.missionMinute = minute;
     }
 
+    /** 방장이 탈퇴하면 남은 그룹원에게 방장을 넘긴다 — 없는 사람을 가리킨 채로 두지 않는다. */
+    public void changeHost(Long newHostUserId) {
+        this.hostUserId = newHostUserId;
+    }
+
     public void restartCycle() {
         this.startedAt = LocalDateTime.now();
     }
