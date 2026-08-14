@@ -13,6 +13,9 @@ export default function MyPage() {
   const nextMealKey = Object.keys(MEAL_LABELS).find((key) => !state.meals[key]);
   const missionsToShow = visibleMissions(state.missions);
   const upcoming = nextUpcomingMission(state.missions);
+  // 식단 미션은 "미완료 중 첫 번째"만 실제 인증 대상이라(MealUploadPage/서버 판정 규칙과 동일),
+  // 그 미션에만 "사진 인증" 버튼을 활성화해야 카드 제목과 인증 화면 제목이 항상 일치한다.
+  const pendingDietId = state.missions.find((m) => m.type === 'diet' && !m.done)?.id ?? null;
 
   return (
     <div className="px-5 pt-8 pb-24">
@@ -89,7 +92,7 @@ export default function MyPage() {
               <p className="text-sm text-sub text-center py-6">오늘의 미션을 준비하고 있어요</p>
             )}
             {missionsToShow.map((m) => (
-              <MissionCard key={m.id} mission={m} nextMealKey={nextMealKey} />
+              <MissionCard key={m.id} mission={m} nextMealKey={nextMealKey} isPendingDiet={m.id === pendingDietId} />
             ))}
             {upcoming && (
               <div className="flex items-center gap-3 rounded-2xl px-4 py-3.5 border border-dashed border-black/10 text-sub">

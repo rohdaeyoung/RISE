@@ -327,6 +327,12 @@ function reducer(state, action) {
       // 최종 결과의 "최종 순위"는 오늘 하루 %가 아니라 이번 7일간 모은 포인트 기준으로 다시 정렬.
       const ranking = buildRanking(state).sort((a, b) => b.points - a.points);
       const rank = myRankOf(ranking);
+      // 캐릭터 표정은 항상 이번에 계산한 최종 순위와 일치하도록 다시 계산 — state.character.expression을
+      // 그대로 두면 마지막 활동 시점의 표정(예: 이전 사이클의 잔여 표정)과 어긋날 수 있음.
+      // ChallengeSummarySheet는 이 값이 아니라 ranking의 "나" 항목(expression)을 그려서 카드에 반영하므로
+      // ranking 쪽도 함께 갱신해야 한다.
+      const expression = expressionFromRank(rank, ranking.length, rate);
+      const finalRanking = ranking.map((p) => (p.isMe ? { ...p, expression } : p));
       return {
         ...state,
         challengeSummary: {
@@ -334,15 +340,13 @@ function reducer(state, action) {
           // "완주"는 며칠째 끝냈는지가 아니라 7일 챌린지를 다 돌았다는 뜻이라 항상 챌린지 길이 그대로.
           days: CHALLENGE_LENGTH_DAYS,
           coinsEarned: state.challengeCoins,
-          ranking,
+          ranking: finalRanking,
           rank,
-          totalParticipants: ranking.length,
+          totalParticipants: finalRanking.length,
           mealPhotos: Object.entries(state.meals)
             .filter(([, v]) => v?.photo)
             .map(([key, v]) => ({ mealKey: key, mealLabel: MEAL_LABELS[key], photo: v.photo })),
-          // 캐릭터 표정은 항상 이번에 계산한 순위와 일치하도록 다시 계산 — state.character.expression을
-          // 그대로 복사하면 다른 시점(예: 이전 사이클의 잔여 표정)과 어긋날 수 있음.
-          character: { ...state.character, expression: expressionFromRank(rank, ranking.length, rate) },
+          character: { ...state.character, expression },
           groupName: state.group?.name ?? DEFAULT_GROUP_NAME,
           members: state.group?.members ?? [],
         },
