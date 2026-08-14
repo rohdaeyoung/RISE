@@ -1,7 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Clock, Flame, Settings, Sprout } from 'lucide-react';
 import { achievementRate, currentStreak, expressionForRanking, MEAL_LABELS, useAppState } from '../context/AppContext';
-import { nextUpcomingMission, visibleMissions } from '../api/missionApi';
+import {
+  DEFAULT_MISSION_HOUR,
+  DEFAULT_MISSION_MINUTE,
+  formatClock,
+  nextUpcomingMission,
+  visibleMissions,
+} from '../api/missionApi';
 import CharacterAvatar from '../components/CharacterAvatar';
 import CoinIcon from '../components/CoinIcon';
 import MissionCard from '../components/MissionCard';
@@ -13,6 +19,19 @@ export default function MyPage() {
   const nextMealKey = Object.keys(MEAL_LABELS).find((key) => !state.meals[key]);
   const missionsToShow = visibleMissions(state.missions);
   const upcoming = nextUpcomingMission(state.missions);
+  // 아직 방에서 정한 미션 시각이 안 됐으면 서버가 세트를 만들지 않는다. 그 사이를
+  // "준비하고 있어요"로 두면 고장난 것처럼 보이므로, 언제 도착하는지 알려준다.
+  // 시각이 지났는데도 비어 있는 경우(스케줄러가 도는 1분 사이, 온보딩 미완료)에는
+  // 도착 시각을 띄우면 거짓말이 되므로 기존 문구를 그대로 쓴다.
+  const missionTime = state.group
+    ? { hour: state.group.missionHour ?? DEFAULT_MISSION_HOUR, minute: state.group.missionMinute ?? DEFAULT_MISSION_MINUTE }
+    : null;
+  const now = new Date();
+  const waitingForMissionTime =
+    missionsToShow.length === 0 &&
+    !upcoming &&
+    missionTime != null &&
+    now.getHours() * 60 + now.getMinutes() < missionTime.hour * 60 + missionTime.minute;
 
   return (
     <div className="px-5 pt-8 pb-24">
@@ -86,8 +105,22 @@ export default function MyPage() {
         <>
           <h2 className="text-sm font-semibold text-ink mb-3">오늘의 미션</h2>
           <div className="space-y-2">
-            {missionsToShow.length === 0 && !upcoming && (
+            {missionsToShow.length === 0 && !upcoming && !waitingForMissionTime && (
               <p className="text-sm text-sub text-center py-6">오늘의 미션을 준비하고 있어요</p>
+            )}
+            {waitingForMissionTime && (
+              <div className="flex items-center gap-3 rounded-2xl px-4 py-3.5 border border-dashed border-black/10 text-sub">
+                <span className="w-9 h-9 flex items-center justify-center rounded-full bg-cream flex-shrink-0">
+                  <Clock size={16} />
+                </span>
+                <p className="text-sm">
+                  오늘의 미션은{' '}
+                  <span className="font-semibold text-ink">
+                    {formatClock(missionTime.hour * 60 + missionTime.minute).label}
+                  </span>
+                  에 한 번에 도착해요
+                </p>
+              </div>
             )}
             {missionsToShow.map((m) => (
               <MissionCard key={m.id} mission={m} nextMealKey={nextMealKey} />

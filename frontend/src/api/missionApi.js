@@ -36,9 +36,9 @@ const DIET_POOL_BY_GOAL = { diet: MISSION_POOL.diet, bulk: MISSION_POOL.bulk, he
 export const DEFAULT_MISSION_HOUR = 9;
 export const DEFAULT_MISSION_MINUTE = 0;
 
-// 미션은 한 번에 다 열리지 않고, 그룹에서 설정한 "미션 시작 시간"부터 하루 동안 시간대별로
-// 하나씩 도착함 (식단 2개 + 생활습관 1개, 총 3개). 오프셋은 시작 시간 기준 +0h/+3.5h/+7h.
-const UNLOCK_OFFSET_MINUTES = [0, 210, 420, 660];
+// 하루치 미션(식단 2개 + 생활습관 1개)은 그룹에서 설정한 "미션 시작 시간"에 한꺼번에 도착한다
+// (PRD 8 — "설정된 시간에 모든 그룹원의 개인 맞춤 미션이 동시에 생성된다").
+// 예전에는 +3.5h/+7h로 나눠 열어서 미션 하나만 보이고 "다음 미션은 오후 12:30에 도착해요"가 떴다.
 
 export function formatClock(totalMinutes) {
   const wrapped = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
@@ -53,34 +53,20 @@ function pickRandom(pool, count) {
   return [...pool].sort(() => 0.5 - Math.random()).slice(0, count);
 }
 
-// input: { goal, missionHour, missionMinute, firstUnlocksNow }. 그룹에서 설정한 미션 시작 시간이 기준.
-// firstUnlocksNow: 그룹을 막 만든 시점처럼, 미션 시작 시간이 아직 안 됐어도 첫 미션 하나는 바로
-// 보여주고 싶을 때 true로 넘김 — 나머지는 그대로 시간대별로 도착.
+// input: { goal }. 세트를 만드는 시점 = 미션이 도착한 시점이므로 전부 열린 상태로 만든다.
+// (missionHour/missionMinute는 백엔드 스케줄러가 "언제 세트를 만들지"를 정할 때 쓰고,
+//  mock 모드에는 스케줄러가 없어 호출 시점에 바로 만든다.)
 // output: [{ id, type: 'diet'|'lifestyle', title, done, unlockHour, unlockMinute, unlockLabel }]
-export function generateDailyMissions({
-  goal,
-  missionHour = DEFAULT_MISSION_HOUR,
-  missionMinute = DEFAULT_MISSION_MINUTE,
-  firstUnlocksNow = false,
-}) {
+export function generateDailyMissions({ goal }) {
   const dietPool = DIET_POOL_BY_GOAL[goal] || MISSION_POOL.health;
   const dietTitles = pickRandom(dietPool, Math.min(2, dietPool.length));
   const lifestyleTitles = pickRandom(LIFESTYLE_POOL, Math.min(1, LIFESTYLE_POOL.length));
 
-  const missions = [
-    ...dietTitles.map((title, i) => ({ id: `d${i}-${Date.now()}`, type: 'diet', title, done: false })),
-    ...lifestyleTitles.map((title, i) => ({ id: `l${i}-${Date.now()}`, type: 'lifestyle', title, done: false })),
+  const open = { unlockHour: null, unlockMinute: null, unlockLabel: '지금' };
+  return [
+    ...dietTitles.map((title, i) => ({ id: `d${i}-${Date.now()}`, type: 'diet', title, done: false, ...open })),
+    ...lifestyleTitles.map((title, i) => ({ id: `l${i}-${Date.now()}`, type: 'lifestyle', title, done: false, ...open })),
   ];
-
-  const baseMinutes = missionHour * 60 + missionMinute;
-  return missions.map((mission, i) => {
-    if (firstUnlocksNow && i === 0) {
-      return { ...mission, unlockHour: null, unlockMinute: null, unlockLabel: '지금' };
-    }
-    const offset = UNLOCK_OFFSET_MINUTES[i] ?? UNLOCK_OFFSET_MINUTES[UNLOCK_OFFSET_MINUTES.length - 1];
-    const slot = formatClock(baseMinutes + offset);
-    return { ...mission, unlockHour: slot.hour, unlockMinute: slot.minute, unlockLabel: slot.label };
-  });
 }
 
 // 미션이 도착 시간이 지나 지금 인증 가능한 상태인지 여부.

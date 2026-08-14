@@ -93,7 +93,15 @@ export default function ChallengeSummarySheet({ summary }) {
                     <span className="text-[10px] font-bold text-ink">{i + 1}</span>
                   )}
                 </span>
-                <CharacterAvatar species={p.species} expression={p.expression} size="md" breathing={false} />
+                {/* outfit을 빼먹으면 상점에서 산 옷을 입고 있어도 결산에서만 기본 옷으로 보인다.
+                    랭킹·그룹 피드는 넘기고 있어서 결산 화면만 캐릭터가 달라 보였다. */}
+                <CharacterAvatar
+                  species={p.species}
+                  expression={p.expression}
+                  outfit={p.outfit}
+                  size="md"
+                  breathing={false}
+                />
                 <p className="text-xs font-semibold text-center text-ink">{p.label}</p>
                 <p className="text-sm font-bold text-ink">{p.points}점</p>
                 {/* 점수만 보면 서로 얼마나 해냈는지 감이 안 와서, 7일 전체 달성률을 함께 보여준다. */}
@@ -118,6 +126,7 @@ export default function ChallengeSummarySheet({ summary }) {
                 key={p.id}
                 species={p.species}
                 expression={p.expression}
+                outfit={p.outfit}
                 size="md"
                 breathing={false}
                 framed={false}

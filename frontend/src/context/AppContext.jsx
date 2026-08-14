@@ -137,7 +137,7 @@ function reducer(state, action) {
           missionHour,
           missionMinute,
         },
-        missions: newMissionSet({ goal: state.onboarding.goal, missionHour, missionMinute, firstUnlocksNow: true }),
+        missions: newMissionSet({ goal: state.onboarding.goal }),
         meals: { breakfast: null, lunch: null, dinner: null },
         todayPhoto: null,
         challengeSummary: null,
@@ -184,12 +184,7 @@ function reducer(state, action) {
       // 온보딩은 이제 그룹 생성/참여 "이후"에 진행됨 — 그룹이 이미 있으면 그때까지 목표(goal)를
       // 몰라서 fallback 풀로 만들어둔 미션을, 방금 알게 된 goal 기준으로 다시 만든다.
       const missions = state.group
-        ? newMissionSet({
-            goal: onboarding.goal,
-            missionHour: state.group.missionHour,
-            missionMinute: state.group.missionMinute,
-            firstUnlocksNow: true,
-          })
+        ? newMissionSet({ goal: onboarding.goal })
         : state.missions;
       return {
         ...state,
@@ -306,11 +301,7 @@ function reducer(state, action) {
       // 7일 동안 몸이나 목표가 달라졌을 수 있고, 그래야 AI가 새 기준으로 미션을 만든다.
       // 온보딩을 비우면 resolveHomeRoute가 온보딩 화면으로 보낸다.
       const group = state.group ? { ...state.group, startedAt: Date.now() } : null;
-      const missions = newMissionSet({
-        goal: null,
-        missionHour: group?.missionHour,
-        missionMinute: group?.missionMinute,
-      });
+      const missions = newMissionSet({ goal: null });
       return {
         ...state,
         group,
@@ -348,11 +339,7 @@ function reducer(state, action) {
         );
       }
 
-      const missions = newMissionSet({
-        goal: state.onboarding.goal,
-        missionHour: state.group.missionHour,
-        missionMinute: state.group.missionMinute,
-      });
+      const missions = newMissionSet({ goal: state.onboarding.goal });
 
       return {
         ...state,
