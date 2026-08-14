@@ -46,6 +46,10 @@ public enum ErrorCode {
     MEAL_ANALYSIS_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "MEAL_002",
             "지금은 사진을 분석할 수 없어요. 잠시 후 다시 시도해주세요"),
 
+    // ai
+    AI_QUOTA_EXCEEDED(HttpStatus.SERVICE_UNAVAILABLE, "AI_001",
+            "오늘 AI 사용량을 다 썼어요. 잠시 후 다시 시도해주세요"),
+
     // challenge
     CHALLENGE_NOT_FINISHED(HttpStatus.CONFLICT, "CHALLENGE_001", "아직 챌린지가 끝나지 않았어요"),
 

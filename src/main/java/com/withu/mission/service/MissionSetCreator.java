@@ -36,9 +36,6 @@ import java.util.List;
 @RequiredArgsConstructor
 class MissionSetCreator {
 
-    // 그룹에서 설정한 미션 시작 시간 기준 +0h/+3.5h/+7h/+11h 간격으로 하나씩 도착 (프론트 missionApi.js와 동일).
-    private static final int[] UNLOCK_OFFSET_MINUTES = {0, 210, 420, 660};
-
     private final MissionRepository missionRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final OnboardingRepository onboardingRepository;
@@ -49,7 +46,19 @@ class MissionSetCreator {
 
     @Transactional
     public void createTodaySet(Long userId, LocalDate today) {
-        Group group = getGroupOfUser(userId);
+        GroupMember member = getMembership(userId);
+        Group group = member.getGroup();
+
+        // 방을 만들 때 정한 미션 시각 전에는 만들지 않는다. 예전에는 사용자가 MY 화면을 여는
+        // 순간 시각과 무관하게 만들어버려서, 오후 9시로 설정해두고 아침에 앱을 열면 그냥 미션이
+        // 나왔다. 그러면 미션 시각 설정이 아무 의미가 없다 (PRD 8 — 설정된 시간에 생성).
+        //
+        // 단 첫날은 예외다. 방을 만들거나 참여한 사람은 그 자리에서 미션을 받아야 한다.
+        // 아니면 오후 9시로 설정하고 아침에 방을 만든 사람은 하루를 빈 화면으로 보낸다.
+        if (!isFirstDay(group, member, today) && LocalTime.now().isBefore(missionTimeOf(group))) {
+            return;
+        }
+
         Onboarding onboarding = onboardingRepository.findByUserIdAndGroupId(userId, group.getId())
                 .orElseThrow(() -> new CustomException(ErrorCode.ONBOARDING_NOT_FOUND));
 
@@ -70,10 +79,8 @@ class MissionSetCreator {
         );
         List<GeneratedMission> generated = generateWithFallback(command);
 
-        LocalTime base = LocalTime.of(group.getMissionHour(), group.getMissionMinute());
         for (int i = 0; i < generated.size(); i++) {
             GeneratedMission g = generated.get(i);
-            LocalTime unlockTime = i == 0 ? null : base.plusMinutes(offsetFor(i));
             missionRepository.save(Mission.builder()
                     .userId(userId)
                     .groupId(group.getId())
@@ -81,7 +88,10 @@ class MissionSetCreator {
                     .seq(i)
                     .type(MissionType.valueOf(g.type().name()))
                     .title(g.title())
-                    .unlockTime(unlockTime)
+                    // 하루치 미션은 세트가 만들어지는 순간 전부 함께 열린다 (PRD 8 — "설정된 시간에
+                    // 모든 그룹원의 개인 맞춤 미션이 동시에 생성된다"). 예전에는 +3.5h/+7h로 나눠
+                    // 열어서, 미션 하나만 보이고 "다음 미션은 오후 12:30에 도착해요"가 떴다.
+                    .unlockTime(null)
                     .build());
         }
         // 커밋까지 미루지 않고 여기서 제약 위반을 드러내, 호출자가 "이미 만들어졌다"로 처리할 수 있게 한다.
@@ -104,15 +114,24 @@ class MissionSetCreator {
         }
     }
 
-    private int offsetFor(int index) {
-        return index < UNLOCK_OFFSET_MINUTES.length
-                ? UNLOCK_OFFSET_MINUTES[index]
-                : UNLOCK_OFFSET_MINUTES[UNLOCK_OFFSET_MINUTES.length - 1];
+    static LocalTime missionTimeOf(Group group) {
+        return LocalTime.of(group.getMissionHour(), group.getMissionMinute());
     }
 
-    private Group getGroupOfUser(Long userId) {
-        GroupMember member = groupMemberRepository.findByUserId(userId)
+    /**
+     * 이 사람에게 오늘이 이번 사이클의 첫날인가.
+     *
+     * <p>사이클 시작일과 참여일을 모두 본다. 방을 만든 사람은 사이클 시작일이 오늘이고,
+     * 중간에 코드로 들어온 사람은 참여일이 오늘이다. "계속하기"로 새 사이클을 시작하면
+     * 시작일이 다시 오늘이 되므로 그때도 바로 미션을 받는다.
+     */
+    private boolean isFirstDay(Group group, GroupMember member, LocalDate today) {
+        return group.getStartedAt().toLocalDate().equals(today)
+                || member.getCreatedAt().toLocalDate().equals(today);
+    }
+
+    private GroupMember getMembership(Long userId) {
+        return groupMemberRepository.findByUserId(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_GROUP_MEMBER));
-        return member.getGroup();
     }
 }

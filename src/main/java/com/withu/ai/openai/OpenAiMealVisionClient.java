@@ -118,8 +118,7 @@ public class OpenAiMealVisionClient implements MealVisionAiClient {
             InternalFit fit = InternalFit.valueOf(parsed.path("internalFit").asText("NORMAL").toUpperCase());
             return new MealAnalysisResult(achieved, fit);
         } catch (Exception e) {
-            log.error("OpenAI 식단 분석 실패", e);
-            throw new IllegalStateException("AI 식단 분석에 실패했습니다", e);
+            throw OpenAiErrors.translate("AI 식단 분석", e);
         }
     }
 

@@ -99,8 +99,9 @@ public class OpenAiMissionClient implements MissionAiClient {
                     ? missions.subList(0, command.missionCount())
                     : missions;
         } catch (Exception e) {
-            log.error("OpenAI 미션 생성 실패, fallback 없이 예외 전파", e);
-            throw new IllegalStateException("AI 미션 생성에 실패했습니다", e);
+            // 여기서 던진 예외는 MissionSetCreator가 받아 고정 풀 미션으로 대체한다.
+            // 사용량 한도에 걸려도 미션은 나와야 앱이 멈추지 않는다.
+            throw OpenAiErrors.translate("AI 미션 생성", e);
         }
     }
 

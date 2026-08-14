@@ -106,8 +106,7 @@ public class OpenAiLifestyleVisionClient implements LifestyleVisionAiClient {
             log.info("생활습관 미션 인증 판정. 미션={} 인식={} 달성={}", missionTitle, seen, achieved);
             return new LifestyleVerification(achieved, seen);
         } catch (Exception e) {
-            log.error("OpenAI 생활습관 미션 인증 판정 실패", e);
-            throw new IllegalStateException("AI 인증 판정에 실패했습니다", e);
+            throw OpenAiErrors.translate("AI 인증 판정", e);
         }
     }
 
