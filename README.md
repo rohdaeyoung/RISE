@@ -200,6 +200,16 @@ npm install && npm run dev
    사용자가 적어낸 음식 이름과 사진이 다르면 사진을 믿도록 했습니다.
    인식 결과는 로그로 남겨 오판 신고가 들어왔을 때 추적할 수 있게 했습니다.
 
+7. **생활습관 미션은 아무 사진이나 올려도 인증됨** (백엔드 + 프론트)
+   걷기 미션에 채소 사진을 올려도 통과했습니다. 원인은 판정이 느슨해서가 아니라
+   **사진이 서버로 아예 오지 않아서**였습니다. 프론트가 본문 없이 인증 API를 부르고,
+   서버는 "생활습관은 단순 완료 인증"이라며 무조건 완료 처리하고 있었습니다.
+   → `LifestyleVisionAiClient`를 추가해 사진을 AI가 판정합니다. 인증 API를 multipart로 바꾸고
+   프론트가 사진을 실어 보냅니다. 판정에 실패하면 `MISSION_004`로 거절하고 완료 처리하지 않습니다.
+   식단 판정과 나눈 이유는 묻는 것이 다르기 때문입니다 — 식단은 "목표에 맞는 음식인가",
+   생활습관은 "그 행동을 하는 상황에서 찍을 법한 사진인가"를 봅니다.
+   걷기 인증에 걷는 자기 모습을 찍을 수는 없으므로 **바깥 풍경이면 인정**합니다.
+
 > **교훈**: "내 화면에서는 되는데" 유형은 대부분 **서버에 안 보냈거나, 서버에서 안 받아오는 것**입니다.
 > 상태를 바꾸는 화면을 만들면 `dispatch` 옆에 API 호출이 있는지, 그리고 그 값이
 > `AppContext`의 `sync()`가 다시 받아오는 목록에 포함되는지 두 가지를 같이 확인하세요.
@@ -228,7 +238,8 @@ com.withu
 
 ## AI 연동
 
-`ai` 패키지의 `MissionAiClient`, `MealVisionAiClient` 인터페이스가 유일한 AI 연동 지점입니다.
+`ai` 패키지의 `MissionAiClient`, `MealVisionAiClient`, `LifestyleVisionAiClient` 인터페이스가
+유일한 AI 연동 지점입니다.
 
 - `.env`에 `OPENAI_API_KEY`가 **있으면** → `ai/openai`의 실제 구현체가 `@Primary`로 등록
 - **없으면** → `ai/mock`의 mock 구현체가 동작
@@ -246,7 +257,7 @@ com.withu
 | 캐릭터 | `POST /api/characters`, `GET /api/characters/me`, `PATCH /api/characters/me/species` |
 | 그룹 | `POST /api/groups`, `POST /api/groups/join`, `GET /api/groups/me`, `GET /api/groups/me/members/{userId}`, `DELETE /api/groups/me`, `PATCH /api/groups/me/name`, `PATCH /api/groups/me/mission-time` |
 | 온보딩 | `POST /api/onboarding`, `GET /api/onboarding/me` |
-| 미션 | `POST /api/missions/today`, `GET /api/missions/today`, `POST /api/missions/{id}/verify` |
+| 미션 | `POST /api/missions/today`, `GET /api/missions/today`, `POST /api/missions/{id}/verify` (multipart, 사진 필수) |
 | 식단 | `POST /api/meals/{slot}/analyze` (multipart), `GET /api/meals/today` |
 | 챌린지 | `POST /api/challenges/end`, `GET /api/challenges/summary`, `POST /api/challenges/continue` |
 | 파일 | `GET /api/files/{id}` (인증 불필요) |

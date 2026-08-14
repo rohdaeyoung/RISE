@@ -1,6 +1,7 @@
 package com.withu.global.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.withu.ai.openai.OpenAiLifestyleVisionClient;
 import com.withu.ai.openai.OpenAiMealVisionClient;
 import com.withu.ai.openai.OpenAiMissionClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,5 +55,14 @@ public class OpenAiClientConfig {
             RestClient openAiRestClient, ObjectMapper objectMapper,
             @Value("${openai.vision-model}") String model) {
         return new OpenAiMealVisionClient(openAiRestClient, objectMapper, model);
+    }
+
+    @Bean
+    @Primary
+    @ConditionalOnBean(RestClient.class)
+    public OpenAiLifestyleVisionClient openAiLifestyleVisionClient(
+            RestClient openAiRestClient, ObjectMapper objectMapper,
+            @Value("${openai.vision-model}") String model) {
+        return new OpenAiLifestyleVisionClient(openAiRestClient, objectMapper, model);
     }
 }

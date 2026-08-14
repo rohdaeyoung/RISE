@@ -2,7 +2,10 @@ package com.withu.mission.service;
 
 import com.withu.auth.entity.User;
 import com.withu.auth.repository.UserRepository;
+import com.withu.ai.LifestyleVisionAiClient;
+import com.withu.ai.LifestyleVisionAiClient.LifestyleVerification;
 import com.withu.character.service.ExpressionResolver;
+import com.withu.file.service.FileStorageService;
 import com.withu.global.common.GameConstants;
 import com.withu.global.error.CustomException;
 import com.withu.global.error.ErrorCode;
@@ -19,6 +22,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -35,6 +39,8 @@ public class MissionService {
     private final UserRepository userRepository;
     private final ExpressionResolver expressionResolver;
     private final MissionSetCreator missionSetCreator;
+    private final LifestyleVisionAiClient lifestyleVisionAiClient;
+    private final FileStorageService fileStorageService;
 
     /**
      * 오늘 미션을 가져오되, 아직 없으면 만들어서 준다.
@@ -65,8 +71,14 @@ public class MissionService {
         return new TodaySummary(responses, rate);
     }
 
+    /**
+     * 생활습관 미션을 인증 사진으로 완료 처리한다.
+     *
+     * <p>사진이 미션과 맞는지 AI가 판정한다. 예전에는 사진을 서버로 보내지도 않고 무조건 완료
+     * 처리했는데, 그러면 걷기 미션에 아무 사진이나 올려도 인증되어 인증 자체가 의미가 없었다.
+     */
     @Transactional
-    public Response verifyLifestyleMission(Long userId, Long missionId) {
+    public Response verifyLifestyleMission(Long userId, Long missionId, MultipartFile photo) {
         Mission mission = missionRepository.findById(missionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.MISSION_NOT_FOUND));
         if (!mission.getUserId().equals(userId)) {
@@ -78,10 +90,42 @@ public class MissionService {
         if (!mission.isUnlocked(LocalTime.now())) {
             throw new CustomException(ErrorCode.MISSION_LOCKED);
         }
-        // 생활습관 미션은 목표적합도 판단이 필요 없는 단순 완료 인증이라 mock에서는 항상 성공 처리.
-        mission.complete();
+        requireImage(photo);
+
+        if (!verifySafely(photo, mission.getTitle()).achieved()) {
+            throw new CustomException(ErrorCode.MISSION_PHOTO_MISMATCH);
+        }
+
+        // 판정이 끝난 뒤에 저장한다 — 미달성 사진까지 DB에 쌓을 이유가 없다.
+        mission.complete(fileStorageService.store(photo));
         rewardCoins(userId);
         return Response.from(mission, LocalTime.now());
+    }
+
+    /** 사진이 아닌 파일은 AI를 부르기 전에 걸러낸다 (MealService.requireImage와 같은 이유). */
+    private void requireImage(MultipartFile photo) {
+        if (photo == null || photo.isEmpty()) {
+            throw new CustomException(ErrorCode.NOT_AN_IMAGE);
+        }
+        String contentType = photo.getContentType();
+        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+            throw new CustomException(ErrorCode.NOT_AN_IMAGE);
+        }
+    }
+
+    /**
+     * AI가 잠깐 죽어도 스택트레이스 섞인 500을 주지 않는다. 다만 판정을 대충 통과시키지도 않는다 —
+     * 그러면 AI가 죽은 동안 아무 사진이나 인증되기 때문이다. 재시도하도록 안내한다.
+     */
+    private LifestyleVerification verifySafely(MultipartFile photo, String missionTitle) {
+        try {
+            return lifestyleVisionAiClient.verify(photo, missionTitle);
+        } catch (CustomException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            log.warn("생활습관 미션 인증 판정에 실패했습니다. mission={}", missionTitle, e);
+            throw new CustomException(ErrorCode.MISSION_VERIFY_FAILED);
+        }
     }
 
     /**

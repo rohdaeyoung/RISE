@@ -54,6 +54,10 @@ public class Mission extends BaseTimeEntity {
     @Column(name = "unlock_time")
     private LocalTime unlockTime;
 
+    /** 생활습관 미션 인증 사진. 식단 미션은 meals 쪽에 사진이 남으므로 여기서는 null이다. */
+    @Column(name = "photo_url")
+    private String photoUrl;
+
     @Builder
     private Mission(Long userId, Long groupId, LocalDate missionDate, int seq, MissionType type, String title, LocalTime unlockTime) {
         this.userId = userId;
@@ -72,5 +76,11 @@ public class Mission extends BaseTimeEntity {
 
     public void complete() {
         this.done = true;
+    }
+
+    /** 인증 사진과 함께 완료 처리한다 (생활습관 미션). */
+    public void complete(String photoUrl) {
+        this.done = true;
+        this.photoUrl = photoUrl;
     }
 }

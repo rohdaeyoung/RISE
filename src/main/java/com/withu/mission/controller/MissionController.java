@@ -7,6 +7,7 @@ import com.withu.mission.dto.MissionDto.TodaySummary;
 import com.withu.mission.service.MissionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/missions")
@@ -25,8 +26,10 @@ public class MissionController {
         return ApiResponse.success(missionService.getToday(SecurityUtil.getCurrentUserId()));
     }
 
-    @PostMapping("/{missionId}/verify")
-    public ApiResponse<Response> verify(@PathVariable Long missionId) {
-        return ApiResponse.success(missionService.verifyLifestyleMission(SecurityUtil.getCurrentUserId(), missionId));
+    /** 생활습관 미션 인증 — 사진이 미션과 맞는지 AI가 판정한 뒤 완료 처리한다. */
+    @PostMapping(value = "/{missionId}/verify", consumes = "multipart/form-data")
+    public ApiResponse<Response> verify(@PathVariable Long missionId, @RequestPart("photo") MultipartFile photo) {
+        return ApiResponse.success(
+                missionService.verifyLifestyleMission(SecurityUtil.getCurrentUserId(), missionId, photo));
     }
 }
