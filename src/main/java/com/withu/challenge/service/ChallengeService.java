@@ -19,6 +19,7 @@ import com.withu.global.error.ErrorCode;
 import com.withu.group.entity.Group;
 import com.withu.group.entity.GroupMember;
 import com.withu.group.repository.GroupMemberRepository;
+import com.withu.group.service.CycleResetService;
 import com.withu.meal.entity.Meal;
 import com.withu.meal.entity.MealSlot;
 import com.withu.meal.repository.MealRepository;
@@ -58,6 +59,7 @@ public class ChallengeService {
     private final MealRepository mealRepository;
     private final UserRepository userRepository;
     private final CharacterRepository characterRepository;
+    private final CycleResetService cycleResetService;
 
     /**
      * 챌린지를 종료하고 보상을 지급한다. 이미 이번 사이클이 정산된 경우에는 저장된 결과를 그대로 돌려주므로
@@ -96,7 +98,13 @@ public class ChallengeService {
         if (!challengeResultRepository.existsByGroupIdAndCycleStartedAt(group.getId(), group.getStartedAt())) {
             throw new CustomException(ErrorCode.CHALLENGE_NOT_FINISHED);
         }
-        groupMemberRepository.findByGroupId(group.getId()).forEach(GroupMember::resetCyclePoints);
+        // 새 사이클은 처음부터여야 한다. 점수만 0으로 돌리고 미션·식단·온보딩을 남겨두면
+        // Day 1인데 어제 미션이 완료된 채로 시작하고, 목표를 다시 입력할 기회도 없다.
+        LocalDate cycleStart = group.getStartedAt().toLocalDate();
+        groupMemberRepository.findByGroupId(group.getId()).forEach(member -> {
+            member.resetCyclePoints();
+            cycleResetService.reset(member.getUserId(), group.getId(), cycleStart);
+        });
         group.restartCycle();
     }
 

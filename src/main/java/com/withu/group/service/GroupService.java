@@ -17,7 +17,6 @@ import com.withu.meal.repository.MealRepository;
 import com.withu.mission.entity.Mission;
 import com.withu.mission.entity.MissionType;
 import com.withu.mission.repository.MissionRepository;
-import com.withu.onboarding.repository.OnboardingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,7 +43,7 @@ public class GroupService {
     private final ExpressionResolver expressionResolver;
     private final MealRepository mealRepository;
     private final MissionRepository missionRepository;
-    private final OnboardingRepository onboardingRepository;
+    private final CycleResetService cycleResetService;
 
     @Transactional
     public Response create(Long userId, CreateRequest request) {
@@ -90,26 +89,11 @@ public class GroupService {
     public void leave(Long userId) {
         Group group = getGroupOfUser(userId);
         groupMemberRepository.deleteByGroupIdAndUserId(group.getId(), userId);
-        clearCycleProgress(userId, group.getStartedAt().toLocalDate());
-        onboardingRepository.deleteByUserIdAndGroupId(userId, group.getId());
+        cycleResetService.reset(userId, group.getId(), group.getStartedAt().toLocalDate());
         // 마지막 그룹원이 나가면 그룹 자체를 정리한다 (PRD 8. 방 운영).
         if (groupMemberRepository.countByGroupId(group.getId()) == 0) {
             groupRepository.delete(group);
         }
-    }
-
-    /**
-     * 떠나는 사이클에 쌓인 미션과 식단 기록을 지운다.
-     *
-     * <p>미션과 식단은 그룹이 아니라 "사용자 + 날짜"로 저장된다. 그래서 이걸 지우지 않으면
-     * 방을 나갔다가 새 방을 만들어도 이전 방에서 받은 미션과 인증 상태가 그대로 따라와서,
-     * Day 1인데 달성률이 33%로 시작하는 것처럼 보인다. 새 방은 새 사이클이므로 처음부터여야 한다.
-     *
-     * <p>누적 코인과 지난 챌린지 결과·뱃지는 사이클 기록이 아니라 개인 이력이라 건드리지 않는다.
-     */
-    private void clearCycleProgress(Long userId, LocalDate cycleStart) {
-        missionRepository.deleteByUserIdAndMissionDateGreaterThanEqual(userId, cycleStart);
-        mealRepository.deleteByUserIdAndMealDateGreaterThanEqual(userId, cycleStart);
     }
 
     @Transactional
