@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, ChevronRight, Frown } from 'lucide-react';
 import { MAX_NICKNAME_LENGTH, useAppDispatch, useAppState } from '../context/AppContext';
 import { saveNickname } from '../api/profileApi';
-import { logout } from '../api/authApi';
+import { deleteAccount, logout } from '../api/authApi';
 
 export default function SettingsPage() {
   const state = useAppState();
@@ -12,6 +12,8 @@ export default function SettingsPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [nickname, setNickname] = useState(state.nickname ?? '');
   const [nicknameSaved, setNicknameSaved] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   function handleLogout() {
     // 로컬 상태만 지우면 접근 토큰이 기기에 그대로 남는다. 공용 기기에서 다음 사람이
@@ -21,10 +23,22 @@ export default function SettingsPage() {
     navigate('/');
   }
 
+  // 서버에서 지워야 진짜로 지워진다. 로컬만 비우면 화면에서만 사라지고 DB에는 계정이 남아,
+  // 같은 이메일로 재가입이 막히고 전체 랭킹에도 계속 나온다.
   function handleDeleteAccount() {
-    logout();
-    dispatch({ type: 'DELETE_ACCOUNT' });
-    navigate('/');
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError('');
+    deleteAccount(state.auth.email)
+      .then(() => {
+        dispatch({ type: 'DELETE_ACCOUNT' });
+        navigate('/');
+      })
+      .catch((e) => {
+        // 삭제에 실패했는데 화면만 로그아웃시키면 지워진 줄 알게 된다. 실패를 그대로 보여준다.
+        setDeleting(false);
+        setDeleteError(e?.message || '탈퇴에 실패했어요. 잠시 후 다시 시도해주세요');
+      });
   }
 
   function handleSaveNickname() {
@@ -105,15 +119,21 @@ export default function SettingsPage() {
               </p>
             </div>
 
+            {deleteError && (
+              <p className="text-center text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3 mb-4">{deleteError}</p>
+            )}
+
             <div className="space-y-2">
               <button
                 onClick={handleDeleteAccount}
-                className="w-full bg-warn text-white rounded-full py-3.5 text-sm font-semibold"
+                disabled={deleting}
+                className="w-full bg-warn disabled:bg-warn/50 text-white rounded-full py-3.5 text-sm font-semibold"
               >
-                탈퇴하기
+                {deleting ? '탈퇴하는 중...' : '탈퇴하기'}
               </button>
               <button
                 onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
                 className="w-full text-sub text-sm py-2"
               >
                 취소

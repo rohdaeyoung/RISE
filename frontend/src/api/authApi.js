@@ -66,3 +66,17 @@ export function login({ email, password }) {
 export function logout() {
   clearToken();
 }
+
+// 계정 탈퇴 — 서버에서 계정과 모든 기록을 지운다.
+// 예전에는 브라우저 저장소만 비웠다. 화면에서만 사라지고 DB에는 그대로 남아,
+// 같은 이메일로 다시 가입하면 "이미 가입된 이메일"이 뜨고 전체 랭킹에도 계속 나왔다.
+// 토큰은 서버 삭제가 끝난 뒤에 지운다 — 먼저 지우면 삭제 요청이 401로 거절된다.
+export function deleteAccount(email) {
+  if (!isBackendEnabled) {
+    // mock 모드에도 가짜 유저 테이블이 있어서, 여기서 안 지우면 같은 이메일로 재가입이 안 된다.
+    saveUsers(loadUsers().filter((u) => u.email !== email));
+    clearToken();
+    return Promise.resolve();
+  }
+  return api.delete('/api/auth/me').then(() => clearToken());
+}
