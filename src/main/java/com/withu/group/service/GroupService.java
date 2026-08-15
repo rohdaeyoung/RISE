@@ -13,6 +13,8 @@ import com.withu.group.entity.Group;
 import com.withu.group.entity.GroupMember;
 import com.withu.group.repository.GroupMemberRepository;
 import com.withu.group.repository.GroupRepository;
+import com.withu.feed.repository.FeedCommentRepository;
+import com.withu.feed.repository.FeedReactionRepository;
 import com.withu.meal.repository.MealRepository;
 import com.withu.mission.entity.Mission;
 import com.withu.mission.entity.MissionType;
@@ -38,6 +40,8 @@ public class GroupService {
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final UserRepository userRepository;
+    private final FeedReactionRepository feedReactionRepository;
+    private final FeedCommentRepository feedCommentRepository;
     private final CharacterRepository characterRepository;
     private final GroupCodeGenerator codeGenerator;
     private final ExpressionResolver expressionResolver;
@@ -92,6 +96,9 @@ public class GroupService {
         cycleResetService.reset(userId, group.getId(), group.getStartedAt().toLocalDate());
         // 마지막 그룹원이 나가면 그룹 자체를 정리한다 (PRD 8. 방 운영).
         if (groupMemberRepository.countByGroupId(group.getId()) == 0) {
+            // 빈 방의 피드까지 지운다. 안 지우면 방이 사라진 뒤에도 반응·댓글 행이 남는다.
+            feedReactionRepository.deleteByGroupId(group.getId());
+            feedCommentRepository.deleteByGroupId(group.getId());
             groupRepository.delete(group);
         }
     }

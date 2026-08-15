@@ -4,6 +4,8 @@ import com.withu.auth.repository.UserRepository;
 import com.withu.challenge.repository.ChallengeResultRepository;
 import com.withu.challenge.repository.UserBadgeRepository;
 import com.withu.character.repository.CharacterRepository;
+import com.withu.feed.repository.FeedCommentRepository;
+import com.withu.feed.repository.FeedReactionRepository;
 import com.withu.file.service.FileStorageService;
 import com.withu.global.error.CustomException;
 import com.withu.global.error.ErrorCode;
@@ -53,6 +55,8 @@ public class AccountDeletionService {
     private final GroupMemberRepository groupMemberRepository;
     private final GroupRepository groupRepository;
     private final FileStorageService fileStorageService;
+    private final FeedReactionRepository feedReactionRepository;
+    private final FeedCommentRepository feedCommentRepository;
 
     @Transactional
     public void delete(Long userId) {
@@ -61,6 +65,12 @@ public class AccountDeletionService {
         }
 
         List<String> photoUrls = photoUrlsOf(userId);
+
+        // 피드는 그룹을 정리하기 전에 지운다. 남기면 없는 사람이 남긴 반응·댓글이 그룹 피드에
+        // 계속 보인다. 내가 남긴 것과 내가 받은 것 둘 다 지운다.
+        feedReactionRepository.deleteByActorUserId(userId);
+        feedReactionRepository.deleteByTargetUserId(userId);
+        feedCommentRepository.deleteByAuthorUserId(userId);
 
         leaveGroupIfAny(userId);
         characterRepository.findByUserId(userId).ifPresent(characterRepository::delete);
@@ -95,6 +105,8 @@ public class AccountDeletionService {
 
         List<GroupMember> remaining = groupMemberRepository.findByGroupId(group.getId());
         if (remaining.isEmpty()) {
+            feedReactionRepository.deleteByGroupId(group.getId());
+            feedCommentRepository.deleteByGroupId(group.getId());
             groupRepository.delete(group);
             return;
         }

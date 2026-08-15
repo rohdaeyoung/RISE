@@ -1,6 +1,7 @@
 package com.withu.character.entity;
 
 import com.withu.global.common.BaseTimeEntity;
+import com.withu.shop.dto.OutfitCatalog;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -50,6 +51,17 @@ public class Character extends BaseTimeEntity {
         this.expression = Expression.NORMAL;
         this.outfit = DEFAULT_OUTFIT;
         this.ownedOutfits = new HashSet<>(Set.of(DEFAULT_OUTFIT));
+    }
+
+    /**
+     * 지금 입고 있는 의상. 카탈로그에 없는 옛 의상이면 기본 의상으로 바꿔 돌려준다.
+     *
+     * <p>의상 구성이 바뀌면서 예전에 산 옷(formal/picnic/sport)을 입은 채로 남은 사람이 있다.
+     * 그대로 내려보내면 프론트에 그 이미지가 없어 캐릭터가 깨져 보인다. 저장된 값은 건드리지
+     * 않고 내보낼 때만 걸러서, 나중에 그 옷이 돌아오면 다시 입은 상태가 된다.
+     */
+    public String getOutfit() {
+        return OutfitCatalog.normalize(outfit);
     }
 
     public void changeExpression(Expression expression) {
