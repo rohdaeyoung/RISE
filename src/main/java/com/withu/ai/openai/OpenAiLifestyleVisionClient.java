@@ -7,9 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.withu.ai.LifestyleVisionAiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -71,15 +69,13 @@ public class OpenAiLifestyleVisionClient implements LifestyleVisionAiClient {
             seen에 적은 것이 위 목록의 어느 항목과 이어진다면 주저 없이 true를 줘.
             """;
 
-    private final RestClient openAiRestClient;
+    private final OpenAiChatCaller chatCaller;
     private final ObjectMapper objectMapper;
-    private final String model;
 
     @Override
     public LifestyleVerification verify(MultipartFile photo, String missionTitle) {
         try {
             ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("model", model);
             requestBody.putObject("response_format").put("type", "json_object");
             ArrayNode messages = requestBody.putArray("messages");
             messages.addObject().put("role", "system").put("content", SYSTEM_PROMPT);
@@ -91,12 +87,7 @@ public class OpenAiLifestyleVisionClient implements LifestyleVisionAiClient {
                     .putObject("image_url").put("url", toDataUri(photo));
 
             // 응답을 String으로 받아 직접 파싱한다 (OpenAiMealVisionClient와 같은 이유 — Jackson 버전 차이).
-            String responseJson = openAiRestClient.post()
-                    .uri("/chat/completions")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(objectMapper.writeValueAsString(requestBody))
-                    .retrieve()
-                    .body(String.class);
+            String responseJson = chatCaller.call("AI 인증 판정", requestBody);
 
             JsonNode parsed = objectMapper.readTree(
                     objectMapper.readTree(responseJson).at("/choices/0/message/content").asText());

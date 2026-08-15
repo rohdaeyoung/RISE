@@ -8,8 +8,6 @@ import com.withu.ai.MissionAiClient;
 import com.withu.ai.MissionAiClient.RecentMeal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
-import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,9 +40,8 @@ public class OpenAiMissionClient implements MissionAiClient {
             title은 한국어로 20자 이내, 구체적이고 실천 가능한 표현으로 작성해.
             """;
 
-    private final RestClient openAiRestClient;
+    private final OpenAiChatCaller chatCaller;
     private final ObjectMapper objectMapper;
-    private final String model;
 
     @Override
     public List<GeneratedMission> generateDailyMissions(GenerateMissionCommand command) {
@@ -63,21 +60,15 @@ public class OpenAiMissionClient implements MissionAiClient {
                     describeRecentMeals(command.recentMeals()));
 
             ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("model", model);
             requestBody.putObject("response_format").put("type", "json_object");
             ArrayNode messages = requestBody.putArray("messages");
             messages.addObject().put("role", "system").put("content", SYSTEM_PROMPT);
             messages.addObject().put("role", "user").put("content", userPrompt);
 
-            String requestJson = objectMapper.writeValueAsString(requestBody);
-            // Spring 7은 Jackson 3을 쓰지만 이 클래스는 Jackson 2 API로 파싱하므로,
-            // 메시지 컨버터가 관여하지 않도록 응답을 String으로 받아 직접 읽는다.
-            String responseJson = openAiRestClient.post()
-                    .uri("/chat/completions")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestJson)
-                    .retrieve()
-                    .body(String.class);
+            // 모델 지정과 한도 초과 시 대체 모델 전환은 OpenAiChatCaller가 맡는다.
+            // 응답을 String으로 받는 이유: Spring 7은 Jackson 3을 쓰지만 이 클래스는 Jackson 2 API로
+            // 파싱하므로 메시지 컨버터가 관여하지 않게 해야 한다.
+            String responseJson = chatCaller.call("AI 미션 생성", requestBody);
 
             JsonNode response = objectMapper.readTree(responseJson);
             String content = response.at("/choices/0/message/content").asText();

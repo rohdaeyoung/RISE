@@ -27,6 +27,10 @@ openai:
   api-key: ${OPENAI_API_KEY:}
   mission-model: ${OPENAI_MISSION_MODEL:gpt-4o-mini}
   vision-model: ${OPENAI_VISION_MODEL:gpt-4o-mini}
+  # 위 모델의 하루 요청 한도가 차면 앞에서부터 순서대로 이어서 시도한다.
+  # 한도는 모델마다 따로 세므로, 같은 키로도 계속 쓸 수 있다(추가 결제 아님).
+  # 사진 판정에도 쓰이니 반드시 이미지를 볼 수 있는 모델만 넣을 것.
+  fallback-models: ${OPENAI_FALLBACK_MODELS:gpt-4.1-mini,gpt-4.1-nano}
 
 springdoc:
   swagger-ui:

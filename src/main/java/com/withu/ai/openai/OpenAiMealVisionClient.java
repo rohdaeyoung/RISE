@@ -7,9 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.withu.ai.MealVisionAiClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -68,9 +66,8 @@ public class OpenAiMealVisionClient implements MealVisionAiClient {
             음식이 아닌 사진은 BAD.
             """;
 
-    private final RestClient openAiRestClient;
+    private final OpenAiChatCaller chatCaller;
     private final ObjectMapper objectMapper;
-    private final String model;
 
     @Override
     public MealAnalysisResult analyze(MultipartFile photo, String foodName, String portion, String goal,
@@ -85,7 +82,6 @@ public class OpenAiMealVisionClient implements MealVisionAiClient {
                     """.formatted(blankToDash(missionTitle), goal, blankToDash(foodName), blankToDash(portion));
 
             ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("model", model);
             requestBody.putObject("response_format").put("type", "json_object");
             ArrayNode messages = requestBody.putArray("messages");
             messages.addObject().put("role", "system").put("content", SYSTEM_PROMPT);
@@ -96,15 +92,10 @@ public class OpenAiMealVisionClient implements MealVisionAiClient {
             contentArray.addObject().put("type", "image_url")
                     .putObject("image_url").put("url", imageDataUri);
 
-            String requestJson = objectMapper.writeValueAsString(requestBody);
-            // Spring 7은 Jackson 3을 쓰지만 이 클래스는 Jackson 2 API로 파싱하므로,
-            // 메시지 컨버터가 관여하지 않도록 응답을 String으로 받아 직접 읽는다.
-            String responseJson = openAiRestClient.post()
-                    .uri("/chat/completions")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestJson)
-                    .retrieve()
-                    .body(String.class);
+            // 모델 지정과 한도 초과 시 대체 모델 전환은 OpenAiChatCaller가 맡는다.
+            // 응답을 String으로 받는 이유: Spring 7은 Jackson 3을 쓰지만 이 클래스는 Jackson 2 API로
+            // 파싱하므로 메시지 컨버터가 관여하지 않게 해야 한다.
+            String responseJson = chatCaller.call("AI 식단 분석", requestBody);
 
             JsonNode response = objectMapper.readTree(responseJson);
             String content = response.at("/choices/0/message/content").asText();
