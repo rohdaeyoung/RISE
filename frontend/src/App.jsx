@@ -32,6 +32,8 @@ function PhoneShell() {
 }
 
 const SWIPE_THRESHOLD = 60;
+// index.css의 .page-transition-exit 재생 시간과 맞춘다 (여기가 더 짧으면 fade-out이 잘린다).
+const EXIT_ANIMATION_MS = 120;
 
 function MainLayout() {
   const location = useLocation();
@@ -52,6 +54,22 @@ function MainLayout() {
       setStage('exit');
     }
   }, [location, displayLocation]);
+
+  // 화면 교체는 onAnimationEnd에서 일어나는데, 애니메이션이 아예 재생되지 않으면 그 이벤트도
+  // 오지 않는다. 그러면 주소만 바뀌고 화면은 이전 탭에 멈춰 하단 탭이 통째로 먹통이 된다.
+  // 재생되지 않는 경우가 실제로 있다.
+  //   - 사용자가 "동작 줄이기"를 켠 경우 (index.css에서 animation: none 처리)
+  //   - 브라우저가 백그라운드 탭의 애니메이션을 멈춘 경우
+  // 그래서 애니메이션은 연출로만 두고, 화면 교체 자체는 시간이 지나면 반드시 일어나게 한다.
+  useEffect(() => {
+    if (stage !== 'exit') return undefined;
+    const timer = setTimeout(() => {
+      setDisplayLocation(location);
+      setDisplayOutlet(outlet);
+      setStage('enter');
+    }, EXIT_ANIMATION_MS + 60);
+    return () => clearTimeout(timer);
+  }, [stage, location, outlet]);
 
   const handleTouchStart = (e) => {
     const t = e.touches[0];
