@@ -32,7 +32,7 @@ WITHU — AI 기반 개인 맞춤 건강 미션과 그룹 동기부여를 결합
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | DB 연결 실패 |
 | `OPENAI_API_KEY` | 서버는 뜨지만 AI가 mock으로 동작(고정 문구 미션, 랜덤 판정) |
 | `DEMO_SEED=true` | **심사용 데모 계정이 안 만들어집니다** |
-| `CORS_ALLOWED_ORIGINS` | 안 넣으면 모든 출처 허용(`*`). 프론트 도메인으로 좁히세요 |
+| `CORS_ALLOWED_ORIGINS` | 안 넣으면 **모든 출처 허용(`*`)** — 아무 사이트나 우리 API를 부를 수 있습니다. 넣을 값은 "CORS 설정값" 참고 |
 
 `application.yml`의 JWT 기본 키는 이 저장소에 그대로 적혀 있습니다. 그 키로 서명하면
 저장소를 본 누구나 원하는 userId의 토큰을 위조해 아무 계정에나 접근할 수 있습니다.
@@ -514,7 +514,7 @@ Day 7은 8/25로 제출 마감(8/21)을 넘깁니다. 그래서 **이미 6일을
 | 항목 | 내용 |
 |---|---|
 | JWT 기본 키 배포 방지 | local 프로필이 아닌데 공개된 기본 키를 쓰면 **서버가 기동 실패**. 키 길이(48바이트)도 함께 검사 |
-| CORS 좁히기 | `CORS_ALLOWED_ORIGINS`로 지정 가능. 기본값 `*`는 로컬 개발용 |
+| **CORS 좁히기 (2026-08-15 배포 적용)** | Railway에 `CORS_ALLOWED_ORIGINS`를 넣어 실제로 닫았습니다. 그 전까지는 기본값 `*`라 아무 사이트나 API를 부를 수 있었습니다 (아래 "CORS 설정값" 참고) |
 | 비밀번호 | BCrypt 해시 저장, 가입 시 8자 이상 강제 |
 | 소유권 검사 | 남의 미션 인증 시도 → `COMMON_003 권한 없음` (실제 다른 계정 토큰으로 확인) |
 | 인증 필수 | 토큰 없이 API 호출 → 403 |
@@ -537,6 +537,50 @@ Day 7은 8/25로 제출 마감(8/21)을 넘깁니다. 그래서 **이미 6일을
    짧은 만료 + 리프레시 구조가 필요합니다.
 5. **데모 계정 비밀번호가 공개돼 있습니다.** 의도된 것이지만, 이 계정은 실제 API를 그대로
    쓸 수 있으므로 대회 종료 후 `DEMO_SEED=false`로 끄세요.
+
+### CORS 설정값 (서버를 옮기면 반드시 다시 넣어야 합니다)
+
+`CORS_ALLOWED_ORIGINS`는 **코드가 아니라 배포 플랫폼의 환경변수**에 들어 있습니다. 그래서
+저장소만 옮기면 따라오지 않습니다. 안 넣으면 기본값 `*`로 돌아가 다시 열립니다.
+
+현재 Railway에 넣은 값입니다. 콤마로 구분하고 **띄어쓰기를 넣지 마세요.**
+
+```
+https://rise-client-rohdaeyoungs-projects.vercel.app,https://*-rohdaeyoungs-projects.vercel.app,http://localhost:5173
+```
+
+세 개를 다 넣는 이유가 있습니다. 실서비스 주소 하나만 넣으면 나머지가 막힙니다.
+
+| 넣는 값 | 없으면 생기는 일 |
+|---|---|
+| 실서비스 주소 | 배포된 앱이 서버를 못 부름 |
+| `https://*-rohdaeyoungs-projects.vercel.app` | **Vercel 미리보기 배포가 전부 막힘** (PR 올릴 때마다 앱이 안 돎) |
+| `http://localhost:5173` | **팀원 로컬 개발이 막힘** |
+
+`setAllowedOriginPatterns`를 쓰므로 `*` 와일드카드가 동작합니다(`SecurityConfig`). 배포 후
+아래로 확인하세요 — 공격자 주소는 **403이고 `access-control-allow-origin` 줄이 없어야** 정상입니다.
+
+```bash
+curl -s -D- -o /dev/null -X OPTIONS https://rise-server-production.up.railway.app/api/auth/login \
+  -H "Origin: https://evil.example.com" -H "Access-Control-Request-Method: POST" \
+  | grep -i "^HTTP/\|access-control-allow-origin"
+```
+
+실제 배포에서 확인한 결과입니다.
+
+| 부르는 주소 | 결과 |
+|---|---|
+| 실서비스 프론트 | 200 통과 |
+| Vercel 미리보기 (`...-abc123-...`) | 200 통과 |
+| `http://localhost:5173` | 200 통과 |
+| `https://evil.example.com` | **403 차단** |
+| `https://rise-client-....vercel.app.evil.com` (주소 흉내내기) | **403 차단** |
+
+> 값에 오타가 있으면 정상 프론트까지 막혀 앱 전체가 안 돕니다. 재배포 후 앱을 한 번 열어보세요.
+> 문제가 생기면 그 변수를 지우고 재배포하면 원래대로 돌아옵니다.
+>
+> 그리고 **재배포 직후 30초~1분은 502가 납니다.** 서버가 새 버전으로 갈아타는 구간이라 고장이
+> 아닙니다. 다만 **심사 직전에는 재배포하지 마세요** — 하필 그 1분과 겹치면 앱이 안 열립니다.
 
 ---
 
@@ -594,7 +638,7 @@ DB_USERNAME=...
 DB_PASSWORD=...
 JWT_SECRET=...            # 48자 이상. 없으면 서버가 아예 뜨지 않습니다(의도된 동작)
 OPENAI_API_KEY=...        # 대회에서 받은 키
-CORS_ALLOWED_ORIGINS=https://새-프론트-주소
+CORS_ALLOWED_ORIGINS=...  # 위 "CORS 설정값" 참고. 주소 하나만 넣으면 미리보기·로컬이 막힙니다
 DEMO_SEED=true            # 심사용 데모 계정이 필요할 때만
 ```
 
@@ -609,10 +653,15 @@ curl -s -X POST https://새-서버-주소/api/auth/signup \
   -H "Content-Type: application/json" \
   -d '{"email":"tz-check@withu.app","password":"withu1234"}'
 
-# 3. CORS가 좁혀졌는가 — 아래는 비어 있어야 정상(허용되면 아무 사이트나 호출 가능)
-curl -s -I -X OPTIONS https://새-서버-주소/api/auth/login \
+# 3. CORS가 좁혀졌는가 — 403만 나오고 허용 헤더는 안 보여야 정상
+curl -s -D- -o /dev/null -X OPTIONS https://새-서버-주소/api/auth/login \
   -H "Origin: https://evil.example.com" \
-  -H "Access-Control-Request-Method: POST" | grep -i access-control-allow-origin
+  -H "Access-Control-Request-Method: POST" | grep -i "^HTTP/\|access-control-allow-origin"
+
+# 4. 진짜 프론트는 통과하는가 — 3번만 보고 끝내면 프론트까지 막아놓고 모를 수 있다
+curl -s -D- -o /dev/null -X OPTIONS https://새-서버-주소/api/auth/login \
+  -H "Origin: https://새-프론트-주소" \
+  -H "Access-Control-Request-Method: POST" | grep -i "access-control-allow-origin"
 ```
 
 프론트는 Vercel 환경변수 `VITE_API_BASE_URL`을 새 주소로 바꾸고 재배포하면 끝입니다.
