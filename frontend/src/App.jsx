@@ -31,6 +31,14 @@ function PhoneShell() {
   );
 }
 
+// 로그인 없이 주소를 직접 쳐서 내부 화면에 들어가는 걸 막는다. "/"와 "/signup"을 제외한
+// 모든 라우트가 이 가드를 거친다.
+function RequireAuth() {
+  const state = useAppState();
+  if (!state.auth.userId) return <Navigate to="/" replace />;
+  return <Outlet />;
+}
+
 const SWIPE_THRESHOLD = 60;
 // index.css의 .page-transition-exit 재생 시간과 맞춘다 (여기가 더 짧으면 fade-out이 잘린다).
 const EXIT_ANIMATION_MS = 120;
@@ -133,23 +141,26 @@ export default function App() {
         <Route element={<PhoneShell />}>
           <Route path="/" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
-          <Route path="/group-entry" element={<GroupEntryPage />} />
-          <Route path="/group-entry/create" element={<GroupCreatePage />} />
-          <Route path="/group-entry/join" element={<GroupJoinPage />} />
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/character" element={<CharacterCreatePage />} />
-          <Route path="/meal/:mealKey" element={<MealUploadPage />} />
-          <Route path="/mission/:missionId" element={<MissionVerifyPage />} />
-          <Route path="/group/member/:memberId" element={<GroupMemberPage />} />
-          <Route path="/group/settings" element={<GroupSettingsPage />} />
-          <Route path="/group/progress" element={<GroupProgressPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
 
-          <Route element={<MainLayout />}>
-            <Route path="/my" element={<MyPage />} />
-            <Route path="/group" element={<GroupFeedPage />} />
-            <Route path="/ranking" element={<RankingPage />} />
-            <Route path="/shop" element={<ShopPage />} />
+          <Route element={<RequireAuth />}>
+            <Route path="/group-entry" element={<GroupEntryPage />} />
+            <Route path="/group-entry/create" element={<GroupCreatePage />} />
+            <Route path="/group-entry/join" element={<GroupJoinPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/character" element={<CharacterCreatePage />} />
+            <Route path="/meal/:mealKey" element={<MealUploadPage />} />
+            <Route path="/mission/:missionId" element={<MissionVerifyPage />} />
+            <Route path="/group/member/:memberId" element={<GroupMemberPage />} />
+            <Route path="/group/settings" element={<GroupSettingsPage />} />
+            <Route path="/group/progress" element={<GroupProgressPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+
+            <Route element={<MainLayout />}>
+              <Route path="/my" element={<MyPage />} />
+              <Route path="/group" element={<GroupFeedPage />} />
+              <Route path="/ranking" element={<RankingPage />} />
+              <Route path="/shop" element={<ShopPage />} />
+            </Route>
           </Route>
 
           <Route path="*" element={<Navigate to={resolveHomeRoute(state)} replace />} />
