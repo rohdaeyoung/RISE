@@ -12,6 +12,8 @@ export default function CharacterCreatePage() {
   const navigate = useNavigate();
   const [species, setSpecies] = useState(SPECIES_OPTIONS[0]);
   const [nickname, setNickname] = useState('');
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState('');
 
   const nicknameValid = nickname.trim().length > 0;
   const existingSpecies = state.character.species;
@@ -25,16 +27,25 @@ export default function CharacterCreatePage() {
   }, [existingSpecies]);
 
   // 캐릭터 선택은 회원가입 직후 1회 필수 단계 — 끝나면 그냥 일반 홈으로.
+  // 실패를 삼키고 넘어가면 서버엔 캐릭터가 없는데 화면은 만들어진 것처럼 진행되어, 다음 동기화
+  // 때 다시 이 화면으로 튕기거나 닉네임이 그룹원에게 안 보이는 채로 남는다. 성공했을 때만 넘어간다.
   function handleStart() {
-    if (!nicknameValid) return;
+    if (!nicknameValid || starting) return;
+    setStarting(true);
+    setError('');
     // 백엔드 모드에서는 캐릭터를 서버에 만들어 계정에 귀속시킨다(mock 모드에서는 no-op).
     // 이미 만들어져 있어도(재진입) 로컬 진행은 막지 않는다.
     // 닉네임도 서버에 올려야 그룹 피드·랭킹에서 다른 사람에게 이름이 보인다(mock 모드에서는 no-op).
-    Promise.all([createCharacter(species), saveNickname(nickname).catch(() => {})]).finally(() => {
-      dispatch({ type: 'SET_CHARACTER', species });
-      dispatch({ type: 'SET_NICKNAME', nickname });
-      navigate(resolveHomeRoute({ ...state, character: { ...state.character, species } }));
-    });
+    Promise.all([createCharacter(species), saveNickname(nickname)])
+      .then(() => {
+        dispatch({ type: 'SET_CHARACTER', species });
+        dispatch({ type: 'SET_NICKNAME', nickname });
+        navigate(resolveHomeRoute({ ...state, character: { ...state.character, species } }));
+      })
+      .catch((e) => {
+        setStarting(false);
+        setError(e?.message || '시작하지 못했어요. 잠시 후 다시 시도해주세요');
+      });
   }
 
   return (
@@ -78,12 +89,14 @@ export default function CharacterCreatePage() {
         {!nicknameValid && <p className="text-xs text-sub mt-2 px-1">닉네임을 입력해야 시작할 수 있어요</p>}
       </div>
 
+      {error && <p className="text-xs text-warn text-center mb-3">{error}</p>}
+
       <button
         onClick={handleStart}
-        disabled={!nicknameValid}
+        disabled={!nicknameValid || starting}
         className="mt-auto w-full bg-brand disabled:bg-black/10 disabled:text-sub text-white rounded-full py-4 text-sm font-semibold shadow-card disabled:shadow-none transition-colors"
       >
-        이 캐릭터로 시작하기
+        {starting ? '시작하는 중...' : '이 캐릭터로 시작하기'}
       </button>
     </div>
   );

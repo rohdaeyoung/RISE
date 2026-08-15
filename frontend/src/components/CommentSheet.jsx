@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, X } from 'lucide-react';
 import { MAX_COMMENT_LENGTH, useAppDispatch, useAppState } from '../context/AppContext';
+import { addComment } from '../api/feedApi';
+import { isBackendEnabled } from '../api/client';
 
 function formatCommentTimestamp(createdAt) {
   const d = new Date(createdAt);
@@ -23,12 +25,18 @@ export default function CommentSheet({ onClose }) {
     if (list) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   }, [commentCount]);
 
+  // 화면은 즉시 로컬 리듀서로 반영하고(낙관적 업데이트), 백엔드 모드에서는 서버 응답으로
+  // 다시 한번 맞춘다 — 그 사이 다른 그룹원이 남긴 댓글까지 함께 받아오기 위해서다.
   function handleSubmit(e) {
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
     dispatch({ type: 'ADD_COMMENT', text: trimmed });
     setText('');
+    if (!isBackendEnabled) return;
+    addComment(trimmed).then((feed) => {
+      if (feed) dispatch({ type: 'SET_FEED', reactions: feed.reactions, comments: feed.comments });
+    });
   }
 
   return (

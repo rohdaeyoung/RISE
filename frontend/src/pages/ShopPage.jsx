@@ -29,25 +29,46 @@ export default function ShopPage() {
   const ownedOutfits = state.character.ownedOutfits || ['everyday'];
   const coins = state.coins || 0;
   const [previewOutfit, setPreviewOutfit] = useState(equippedOutfit);
+  const [error, setError] = useState('');
 
   // 백엔드 모드에서는 코인 차감/보유 상태를 서버가 검증하므로 서버에 먼저 반영하고 동기화한다.
   // mock 모드에서는 아래 API들이 no-op이라 리듀서만으로 기존과 동일하게 동작한다.
+  // 서버가 거절하면(코인 부족·미보유 등) 15초 뒤 sync()가 조용히 되돌리는 대신, 그 자리에서
+  // 바로 되돌리고 사유를 보여준다.
   function handleSelectSpecies(value) {
     dispatch({ type: 'SET_CHARACTER', species: value });
-    changeSpecies(value).then(sync);
+    setError('');
+    changeSpecies(value)
+      .then(sync)
+      .catch((e) => {
+        setError(e?.message || '변경에 실패했어요. 잠시 후 다시 시도해주세요');
+        sync();
+      });
   }
 
   function handleEquip(outfitId) {
     setPreviewOutfit(outfitId);
     dispatch({ type: 'SET_OUTFIT', outfit: outfitId });
-    wearOutfit(outfitId).then(sync);
+    setError('');
+    wearOutfit(outfitId)
+      .then(sync)
+      .catch((e) => {
+        setError(e?.message || '착용에 실패했어요. 잠시 후 다시 시도해주세요');
+        sync();
+      });
   }
 
   function handleBuy(item) {
     if (coins < item.price) return;
     dispatch({ type: 'BUY_OUTFIT', outfitId: item.id, price: item.price });
     setPreviewOutfit(item.id);
-    buyOutfit(item.id).then(sync);
+    setError('');
+    buyOutfit(item.id)
+      .then(sync)
+      .catch((e) => {
+        setError(e?.message || '구매에 실패했어요. 잠시 후 다시 시도해주세요');
+        sync();
+      });
   }
 
   return (
@@ -76,6 +97,8 @@ export default function ShopPage() {
       <div className="flex justify-center mb-6 py-6">
         <CharacterAvatar species={species} expression="good" outfit={previewOutfit} size="xl" framed={false} />
       </div>
+
+      {error && <p className="text-xs text-warn text-center mb-4">{error}</p>}
 
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-ink">캐릭터 꾸미기</h2>

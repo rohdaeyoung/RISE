@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [nickname, setNickname] = useState(state.nickname ?? '');
   const [nicknameSaved, setNicknameSaved] = useState(false);
+  const [nicknameError, setNicknameError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
@@ -41,11 +42,19 @@ export default function SettingsPage() {
       });
   }
 
+  // 실패했는데도 "저장됨"이 뜨면 사용자는 바뀐 줄 알지만 서버에는 예전 닉네임이 남는다.
+  // 성공했을 때만 로컬에 반영하고 "저장됨"을 보여준다.
   function handleSaveNickname() {
-    saveNickname(nickname).catch(() => {});
-    dispatch({ type: 'SET_NICKNAME', nickname });
-    setNicknameSaved(true);
-    setTimeout(() => setNicknameSaved(false), 1200);
+    setNicknameError('');
+    saveNickname(nickname)
+      .then(() => {
+        dispatch({ type: 'SET_NICKNAME', nickname });
+        setNicknameSaved(true);
+        setTimeout(() => setNicknameSaved(false), 1200);
+      })
+      .catch((e) => {
+        setNicknameError(e?.message || '저장에 실패했어요. 잠시 후 다시 시도해주세요');
+      });
   }
 
   return (
@@ -83,6 +92,7 @@ export default function SettingsPage() {
             {nicknameSaved ? '저장됨' : '저장'}
           </button>
         </div>
+        {nicknameError && <p className="text-xs text-warn mt-2">{nicknameError}</p>}
       </div>
 
       <div className="rounded-2xl border border-gray-300 bg-card shadow-card overflow-hidden mb-3">

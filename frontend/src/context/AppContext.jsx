@@ -9,6 +9,7 @@ import { isBackendEnabled } from '../api/client';
 import { fetchCharacter, fetchMe, fetchOnboarding } from '../api/profileApi';
 import { fetchMyGroup } from '../api/groupApi';
 import { fetchTodayMeals } from '../api/mealApi';
+import { fetchFeed } from '../api/feedApi';
 
 const STORAGE_KEY = 'withu_state';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -476,6 +477,11 @@ function reducer(state, action) {
     case 'SET_CHALLENGE_SUMMARY':
       return { ...state, challengeSummary: action.summary };
 
+    // 서버가 돌려준 오늘의 피드(반응·댓글) 전체로 맞춘다. 반응/댓글 액션 응답과 주기 동기화 양쪽에서
+    // 쓰인다 — 서버가 원본이므로 그 사이 다른 그룹원이 남긴 것까지 여기서 함께 반영된다.
+    case 'SET_FEED':
+      return { ...state, reactions: action.reactions, comments: action.comments };
+
     case 'RESET':
       return initialState;
 
@@ -549,6 +555,10 @@ function useBackendSync(state, dispatch) {
         // 식단 인증도 서버 기록을 따른다 — 새로고침이나 기기 변경으로 인증 표시가 사라지지 않게.
         const meals = await fetchTodayMeals().catch(() => null);
         if (meals) dispatch({ type: 'SET_MEALS', meals });
+
+        // 오늘의 인증 피드(반응·댓글)도 서버 기록을 따른다 — 다른 그룹원이 남긴 것이 여기서 반영된다.
+        const feed = await fetchFeed().catch(() => null);
+        if (feed) dispatch({ type: 'SET_FEED', reactions: feed.reactions, comments: feed.comments });
       }
     } catch {
       // 네트워크 오류 시에는 마지막으로 받은 로컬 상태를 그대로 유지한다.
