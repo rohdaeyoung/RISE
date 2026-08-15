@@ -87,9 +87,19 @@ export default function GroupFeedPage() {
   function handleReact(memberId, emoji) {
     dispatch({ type: 'TOGGLE_REACTION', memberId, emoji });
     if (!isBackendEnabled) return;
-    toggleReaction(memberId, emoji).then((feed) => {
-      if (feed) dispatch({ type: 'SET_FEED', reactions: feed.reactions, comments: feed.comments });
-    });
+    // 화면에서 나는 'me'지만 서버는 실제 userId만 안다. 그대로 보내면 Number('me')가 NaN이 되고
+    // JSON에서 null로 나가 400으로 거절된다 — 내 카드에만 반응이 안 남는다.
+    const targetUserId = memberId === 'me' ? state.auth.userId : memberId;
+    if (targetUserId == null) return;
+    toggleReaction(targetUserId, emoji)
+      .then((feed) => {
+        if (feed) dispatch({ type: 'SET_FEED', reactions: feed.reactions, comments: feed.comments });
+      })
+      .catch(() => {
+        // 서버가 거절하면 낙관적으로 바꿔둔 화면을 되돌린다. 같은 이모지를 한 번 더 보내면
+        // 리듀서 규칙상 방금 넣은 반응이 취소된다.
+        dispatch({ type: 'TOGGLE_REACTION', memberId, emoji });
+      });
   }
 
   function copyCode() {

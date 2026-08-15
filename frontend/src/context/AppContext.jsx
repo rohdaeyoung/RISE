@@ -479,8 +479,16 @@ function reducer(state, action) {
 
     // 서버가 돌려준 오늘의 피드(반응·댓글) 전체로 맞춘다. 반응/댓글 액션 응답과 주기 동기화 양쪽에서
     // 쓰인다 — 서버가 원본이므로 그 사이 다른 그룹원이 남긴 것까지 여기서 함께 반영된다.
-    case 'SET_FEED':
-      return { ...state, reactions: action.reactions, comments: action.comments };
+    case 'SET_FEED': {
+      // 서버는 반응을 실제 userId로 묶어 주는데, 화면은 나를 'me'로 부른다(buildRanking).
+      // 그대로 넣으면 내가 받은 반응이 내 카드에서만 안 보인다 — 키가 서로 달라 못 찾기 때문.
+      const myKey = state.auth.userId == null ? null : String(state.auth.userId);
+      const reactions = {};
+      for (const [userId, value] of Object.entries(action.reactions || {})) {
+        reactions[userId === myKey ? 'me' : userId] = value;
+      }
+      return { ...state, reactions, comments: action.comments };
+    }
 
     case 'RESET':
       return initialState;
