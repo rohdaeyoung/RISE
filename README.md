@@ -544,6 +544,76 @@ AI 장애 `MISSION_005`). 지금은 서버 메시지를 그대로 띄우고 있�
 
 ---
 
+## 해커톤에서 받는 서버로 옮길 때
+
+**코드 수정 없이 환경변수만 바꾸면 됩니다.** 주소·포트·시간대·DB가 전부 환경변수로 빠져 있고,
+사진도 파일이 아니라 DB에 저장하므로 서버가 바뀌어도 따라갑니다.
+
+### 옮기기 전에 확인할 것
+
+| 항목 | 어떻게 처리되나 |
+|---|---|
+| 포트 | `PORT` 환경변수를 주면 그 포트에 붙습니다. 없으면 8080 |
+| 시간대 | **코드에서 한국 시간으로 고정**했습니다. 서버가 UTC여도 그대로 동작 |
+| DB | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`. 빈 DB면 테이블을 자동 생성(`DDL_AUTO=update`) |
+| 업로드 사진 | DB에 저장하므로 서버를 옮겨도 남습니다 (디스크에 안 씁니다) |
+| 프론트 주소 | `CORS_ALLOWED_ORIGINS`에 새 프론트 도메인 |
+| HTTPS 프록시 뒤 | `forward-headers-strategy: framework`로 이미 처리 |
+
+### 반드시 넣어야 하는 환경변수
+
+```
+SPRING_PROFILES_ACTIVE=prod
+DB_URL=jdbc:mysql://호스트:포트/DB이름?useUnicode=true&characterEncoding=utf8
+DB_USERNAME=...
+DB_PASSWORD=...
+JWT_SECRET=...            # 48자 이상. 없으면 서버가 아예 뜨지 않습니다(의도된 동작)
+OPENAI_API_KEY=...        # 대회에서 받은 키
+CORS_ALLOWED_ORIGINS=https://새-프론트-주소
+DEMO_SEED=true            # 심사용 데모 계정이 필요할 때만
+```
+
+### 옮긴 뒤 이것만 확인하면 됩니다
+
+```bash
+# 1. 서버가 살아 있는가 (403이 정상 — 화면 없는 API 서버라 인증 없이는 거절)
+curl -o /dev/null -w "%{http_code}\n" https://새-서버-주소/api/auth/me
+
+# 2. 시간대가 한국인가 — 가입한 시각이 지금 한국 시간과 같아야 한다
+curl -s -X POST https://새-서버-주소/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"tz-check@withu.app","password":"withu1234"}'
+
+# 3. CORS가 좁혀졌는가 — 아래는 비어 있어야 정상(허용되면 아무 사이트나 호출 가능)
+curl -s -I -X OPTIONS https://새-서버-주소/api/auth/login \
+  -H "Origin: https://evil.example.com" \
+  -H "Access-Control-Request-Method: POST" | grep -i access-control-allow-origin
+```
+
+프론트는 Vercel 환경변수 `VITE_API_BASE_URL`을 새 주소로 바꾸고 재배포하면 끝입니다.
+
+### 시간대를 왜 코드에서 고정했나 (건드리지 마세요)
+
+`WithuServerApplication.main()`이 `SpringApplication.run()` **전에** 시간대를 한국으로 정합니다.
+이 앱은 날짜에 크게 기댑니다 — 오늘의 미션, 미션 도착 시각, 끼니, 7일 사이클, 연속 인증.
+`LocalDate.now()`는 서버의 기본 시간대를 따르는데 클라우드 서버는 대부분 UTC입니다.
+
+고정하지 않으면 서버를 옮기는 것만으로 이렇게 어긋납니다.
+
+```
+UTC 서버에서 "오늘"이 바뀌는 시점  → 한국 시간 오전 9시
+미션 시각을 오전 9시로 설정하면     → 실제로는 오후 6시에 도착
+밤 10시에 한 인증                 → 다음 날 기록으로 저장
+```
+
+**`@PostConstruct`로 늦게 부르면 안 됩니다.** 그 사이에 만들어진 DB 커넥션 풀이 옛 시간대를
+붙잡습니다. 실제로 `TZ=UTC`로 띄워서 확인했더니 `created_at`은 한국 시간으로 맞는데
+미션 날짜만 하루 전으로 저장됐습니다 — MySQL 드라이버가 커넥션의 시간대로 날짜를 변환하기
+때문입니다. `main()`에서 먼저 부르도록 고친 뒤 `TZ=UTC`로 다시 띄워 한국 날짜로 저장되는 것을
+확인했습니다.
+
+---
+
 ## 배포 (Railway + Vercel)
 
 **순서가 중요합니다.** 백엔드와 프론트가 서로의 주소를 알아야 하는데, 주소는 배포해야 생깁니다.
