@@ -285,6 +285,25 @@ PRD 8번은 "설정된 시간에 미션이 동시에 생성된다"이므로, 지
    - `pages/GroupSettingsPage.jsx` — 방 설정 저장, 그룹 나가기
    - `pages/CharacterCreatePage.jsx` — 캐릭터 생성, 닉네임 저장
 
+3. **내 카드에만 반응이 남지 않던 문제** (1번을 연결하면서 생긴 것)
+   그룹원 카드의 식별자를 그대로 `targetUserId`로 보냈는데, 화면은 **나를 `'me'`로
+   부릅니다**(`buildRanking`). `Number('me')`는 `NaN`이고 JSON에서 `null`로 나가
+   서버가 400으로 거절합니다. 받는 쪽도 서버 키는 실제 userId라 `reactions['me']`로는
+   못 찾습니다. 결과적으로 내 카드에서만 반응이 안 남고 안 보였습니다.
+   서버가 프론트 내부 표기를 알아야 하는 구조는 잘못이므로 **API는 그대로 두고 프론트에서
+   변환**했습니다. (`pages/GroupFeedPage.jsx`, `context/AppContext.jsx`)
+
+   ```js
+   // 보낼 때 (GroupFeedPage.handleReact)
+   const targetUserId = memberId === 'me' ? state.auth.userId : memberId;
+
+   // 받을 때 (AppContext의 SET_FEED — state.auth.userId를 아는 유일한 곳)
+   reactions[userId === myKey ? 'me' : userId] = value;
+   ```
+
+   **피드 코드를 고칠 때 이 변환을 깨지 마세요.** 깨지면 내 카드만 조용히 동작을 멈춥니다.
+   반응이 거절되면 낙관적으로 바꿔둔 화면도 되돌립니다.
+
 ---
 
 ## 남은 것
