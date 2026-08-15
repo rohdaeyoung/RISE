@@ -15,6 +15,7 @@ import {
   useAppState,
 } from '../context/AppContext';
 import { endChallenge } from '../api/challengeApi';
+import { toggleReaction } from '../api/feedApi';
 import { isBackendEnabled } from '../api/client';
 import CharacterAvatar from '../components/CharacterAvatar';
 import ChallengeSummarySheet from '../components/ChallengeSummarySheet';
@@ -79,6 +80,16 @@ export default function GroupFeedPage() {
     endChallenge()
       .then((summary) => dispatch({ type: 'SET_CHALLENGE_SUMMARY', summary }))
       .catch(() => dispatch({ type: 'END_CHALLENGE' }));
+  }
+
+  // 화면은 즉시 로컬 리듀서로 반영하고(낙관적 업데이트), 백엔드 모드에서는 서버 응답으로
+  // 다시 한번 맞춘다 — 그 사이 다른 그룹원이 남긴 반응까지 함께 받아오기 위해서다.
+  function handleReact(memberId, emoji) {
+    dispatch({ type: 'TOGGLE_REACTION', memberId, emoji });
+    if (!isBackendEnabled) return;
+    toggleReaction(memberId, emoji).then((feed) => {
+      if (feed) dispatch({ type: 'SET_FEED', reactions: feed.reactions, comments: feed.comments });
+    });
   }
 
   function copyCode() {
@@ -225,7 +236,7 @@ export default function GroupFeedPage() {
                           <button
                             key={emoji}
                             onClick={() => {
-                              dispatch({ type: 'TOGGLE_REACTION', memberId: member.id, emoji });
+                              handleReact(member.id, emoji);
                               setOpenPickerId(null);
                             }}
                             aria-label={emoji}

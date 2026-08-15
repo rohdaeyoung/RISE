@@ -11,6 +11,7 @@ export default function GroupCreatePage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [group, setGroup] = useState(null);
+  const [createError, setCreateError] = useState('');
   const [copied, setCopied] = useState(false);
   const [name, setName] = useState('');
   const [missionHour, setMissionHour] = useState(DEFAULT_MISSION_HOUR);
@@ -22,10 +23,23 @@ export default function GroupCreatePage() {
   // 방 이름과 미션 시작 시간은 아래에서 정한 뒤 "시작하기"에서 반영한다.
   // StrictMode는 개발 모드에서 effect를 두 번 실행하므로, 그대로 두면 그룹이 2개 만들어진다.
   const createdRef = useRef(false);
+
+  // 실패하면 초대 코드가 영영 안 뜨고 "그룹을 만들고 있어요..."에 멈춰 있었다 — 사유를 보여주고
+  // 다시 시도할 수 있게 한다.
+  function attemptCreate() {
+    createdRef.current = true;
+    setCreateError('');
+    createGroup({ myUserId })
+      .then(setGroup)
+      .catch((e) => {
+        createdRef.current = false;
+        setCreateError(e?.message || '그룹을 만들지 못했어요. 잠시 후 다시 시도해주세요');
+      });
+  }
+
   useEffect(() => {
     if (createdRef.current) return;
-    createdRef.current = true;
-    createGroup({ myUserId }).then(setGroup);
+    attemptCreate();
   }, [myUserId]);
 
   function copyCode() {
@@ -49,7 +63,18 @@ export default function GroupCreatePage() {
 
   if (!group) {
     return (
-      <div className="min-h-svh flex items-center justify-center text-sub text-sm">그룹을 만들고 있어요...</div>
+      <div className="min-h-svh flex flex-col items-center justify-center gap-3 px-6 text-center">
+        {createError ? (
+          <>
+            <p className="text-sm text-warn">{createError}</p>
+            <button onClick={attemptCreate} className="text-sm text-brand font-semibold">
+              다시 시도
+            </button>
+          </>
+        ) : (
+          <p className="text-sub text-sm">그룹을 만들고 있어요...</p>
+        )}
+      </div>
     );
   }
 

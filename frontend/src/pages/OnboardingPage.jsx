@@ -29,6 +29,8 @@ export default function OnboardingPage() {
   const navigate = useNavigate();
   const [stepIdx, setStepIdx] = useState(0);
   const [form, setForm] = useState({ goal: null, gender: null, age: '', height: '', weight: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   function goNext() {
     if (stepIdx < TOTAL_STEPS - 1) {
@@ -42,15 +44,24 @@ export default function OnboardingPage() {
       height: Number(form.height),
       weight: Number(form.weight),
     };
-    dispatch({ type: 'SET_ONBOARDING', onboarding });
+    setSubmitting(true);
+    setError('');
     // 백엔드 모드에서는 이 정보가 AI 미션 생성의 입력값이 되므로 서버에 먼저 저장한다.
-    // 저장 직후 곧바로 동기화해서 서버가 만든 미션을 받아온다 — 이걸 안 부르면 다음 주기(15초)까지
-    // 미션이 빈 채로 보인다.
-    submitOnboarding(onboarding).then(() => sync()).finally(() => {
-      // 캐릭터는 이미 회원가입 직후에 골랐고, 온보딩은 그룹 생성/참여 다음 단계라
-      // 끝나면 곧장 그룹 피드로 간다.
-      navigate('/group');
-    });
+    // 저장이 실패했는데도 그룹 화면으로 넘어가면 온보딩이 없는 채로 남아 미션이 영영 안 만들어지므로,
+    // 성공했을 때만 넘어간다. 저장 직후 곧바로 동기화해서 서버가 만든 미션을 받아온다 —
+    // 이걸 안 부르면 다음 주기(15초)까지 미션이 빈 채로 보인다.
+    submitOnboarding(onboarding)
+      .then(() => sync())
+      .then(() => {
+        dispatch({ type: 'SET_ONBOARDING', onboarding });
+        // 캐릭터는 이미 회원가입 직후에 골랐고, 온보딩은 그룹 생성/참여 다음 단계라
+        // 끝나면 곧장 그룹 피드로 간다.
+        navigate('/group');
+      })
+      .catch((e) => {
+        setSubmitting(false);
+        setError(e?.message || '저장에 실패했어요. 잠시 후 다시 시도해주세요');
+      });
   }
 
   // 입력을 강제로 고쳐쓰지 않음 — 사용자는 범위 밖의 숫자(예: 몸무게 18)도 자유롭게 입력할 수 있고,
@@ -194,12 +205,14 @@ export default function OnboardingPage() {
         </>
       )}
 
+      {error && <p className="text-xs text-warn text-center mb-3">{error}</p>}
+
       <button
         onClick={goNext}
-        disabled={!canProceed}
+        disabled={!canProceed || submitting}
         className="mt-auto w-full bg-brand disabled:bg-black/10 disabled:text-sub text-white rounded-full py-4 text-sm font-semibold shadow-card disabled:shadow-none transition-colors"
       >
-        {stepIdx < TOTAL_STEPS - 1 ? '다음' : '완료'}
+        {stepIdx < TOTAL_STEPS - 1 ? '다음' : submitting ? '저장하는 중...' : '완료'}
       </button>
     </div>
   );
