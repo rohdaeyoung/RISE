@@ -258,6 +258,77 @@ PRD 8번은 "설정된 시간에 미션이 동시에 생성된다"이므로, 지
 
 ---
 
+## 프론트에서 해야 할 일 (2026-08-15 기준)
+
+백엔드는 준비돼 있는데 화면에서 아직 안 쓰거나, 실패했을 때 사용자가 모르게 넘어가는 것들입니다.
+**위에서부터 급한 순서**입니다.
+
+### 1순위 — 반응·댓글을 서버에 연결 ⚠️ 기능이 반쪽입니다
+
+지금 반응(❤️👍😂😮😢)과 댓글이 `AppContext`에만 쌓입니다. **남긴 사람 화면에만 보이고
+그룹원에게는 안 보입니다.** 서로 응원하는 게 목적인 기능이라 이대로면 의미가 없습니다.
+
+백엔드 API는 만들어져 있습니다. 셋 다 **갱신된 피드 전체**를 돌려주므로 응답을 그대로 반영하면 됩니다.
+
+| 무엇 | API | 보내는 값 |
+|---|---|---|
+| 조회 | `GET /api/feed` | — |
+| 반응 | `POST /api/feed/reactions` | `{ targetUserId, emoji }` |
+| 댓글 | `POST /api/feed/comments` | `{ text }` |
+
+```js
+{
+  reactions: { "12": { counts: { "❤️": 2, "👍": 1 }, myEmoji: "❤️" } },  // 키는 userId 문자열
+  comments: [{ id, authorUserId, authorNickname, me, text, createdAt }]
+}
+```
+
+**주의할 점 세 가지:**
+
+- **`member.id`를 그대로 `targetUserId`로 보내면 안 됩니다.** `buildRanking()`이 나에게는
+  `id: 'me'`를 주고 그룹원에게만 실제 userId를 줍니다. `'me'`는 `state.auth.userId`로 바꿔 보내세요.
+  서버 응답의 `reactions` 키도 실제 userId라 화면에 맞출 때 같은 변환이 필요합니다.
+- 반응 규칙은 지금 `TOGGLE_REACTION` 리듀서와 **같습니다**(같은 이모지 재전송=취소, 다른 이모지=교체).
+  리듀서 로직은 그대로 두고 호출만 붙이면 됩니다.
+- 작성자 표시는 `authorNickname`과 `me`로 만드세요. 서버는 `'나'`/`'그룹원'` 같은 화면용 문구를
+  만들지 않습니다. 모두 **오늘 기준**이라 날짜가 바뀌면 새 피드가 됩니다.
+
+### 2순위 — 서버가 거절했을 때 사용자에게 알리기
+
+`.then(sync)`만 붙어 있고 `.catch`가 없는 곳들입니다. 화면을 먼저 바꾼 뒤 서버에 보내기 때문에,
+**서버가 거절하면 오류가 조용히 묻히고 15초 뒤 `sync()`가 되돌립니다.** 사용자 입장에서는
+"샀는데 잠시 뒤 없어졌다"로 보입니다.
+
+| 파일 | 줄 | 무엇이 실패할 수 있나 |
+|---|---|---|
+| `pages/ShopPage.jsx` | `buyOutfit(item.id).then(sync)` | 코인 부족(409) — 다른 기기에서 먼저 썼거나 로컬 코인이 낡았을 때 |
+| `pages/ShopPage.jsx` | `wearOutfit(outfitId).then(sync)` | 보유하지 않은 의상(409) |
+| `pages/ShopPage.jsx` | `changeSpecies(value).then(sync)` | 서버 오류 |
+| `pages/GroupCreatePage.jsx` | `createGroup({ myUserId }).then(setGroup)` | 실패하면 **초대 코드가 영영 안 뜹니다** |
+| `pages/OnboardingPage.jsx` | `submitOnboarding(...).then(() => sync())` | 실패해도 `.finally`로 그룹 화면에 갑니다 — 미션이 안 만들어진 채로 |
+| `pages/SettingsPage.jsx` | `saveNickname(nickname).catch(() => {})` | 실패해도 **"저장됨"이 뜹니다** |
+
+`MissionVerifyPage`·`MealUploadPage`·`SettingsPage`의 탈퇴는 이미 `.catch`로 오류를 화면에
+보여주고 있습니다. 같은 방식으로 맞춰주세요.
+
+### 3순위 — 정리해도 되는 것
+
+- `nextUpcomingMission` / `visibleMissions` / `isMissionUnlocked` — 미션이 하루치 한 번에
+  열리도록 바뀌면서 지금은 항상 통과합니다. 서버가 다시 `unlockTime`을 채우면 그대로 동작하므로
+  **남겨둬도 됩니다.** 지울 거면 `MyPage`의 "다음 미션은 ~에 도착해요" 블록도 같이 지우세요.
+- `generateDailyMissions`의 `missionHour`/`missionMinute` 인자 — 이제 안 쓰지만 mock 모드
+  호환을 위해 시그니처만 남아 있습니다.
+
+### 백엔드에 알려야 하는 것
+
+- **의상을 추가·교체하면 반드시 알려주세요.** `ShopPage.jsx`의 `OUTFIT_SETS`와 백엔드
+  `OutfitCatalog.ITEMS`는 **id와 가격이 항상 같아야 합니다.** 이번에 어긋나서 세일러·코트·탐정을
+  사려 하면 `SHOP_001 존재하지 않는 의상`으로 거절됐고, 파자마는 프론트 30 / 백엔드 35코인이었습니다.
+  (지금은 맞춰뒀습니다. 예전 의상을 입고 있던 사람은 백엔드가 기본 의상으로 바꿔 내려보냅니다.)
+- **미션이 밋밋하거나 사진 인증이 계속 실패하면** 프론트 문제가 아닙니다. 백엔드의 OpenAI
+  사용량 한도(무료 등급 하루 50회)가 찬 것입니다. 한도를 넘기면 서버가 고정 문구로 대체해서
+  화면은 멀쩡한데 내용만 밋밋해집니다. 자세한 건 `RISE-server/README.md`의 "OpenAI 사용량 한도".
+
 ## 브랜치
 
 `main`이 기준입니다. Vercel이 여기서 자동 배포합니다.
