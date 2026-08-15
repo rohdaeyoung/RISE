@@ -57,7 +57,9 @@ frontend/src
   │   ├── groupApi.js     그룹 생성·참여·설정·나가기
   │   ├── missionApi.js   미션 조회·인증, 시간대별 잠금 해제
   │   ├── mealApi.js      식단 사진 업로드 / AI 분석
-  │   └── profileApi.js   내 정보, 캐릭터, 온보딩
+  │   ├── profileApi.js   내 정보, 캐릭터, 온보딩, 상점, 랭킹
+  │   ├── challengeApi.js 7일 챌린지 종료 / 결과 / 계속하기
+  │   └── feedApi.js      그룹 피드 반응·댓글
   ├── context/
   │   └── AppContext.jsx  ★ 앱 전체 상태(useReducer) + 서버 동기화
   ├── pages/        화면 단위 컴포넌트
@@ -77,7 +79,7 @@ frontend/src
 ### `AppContext.jsx` — 상태와 동기화
 
 - `useReducer` 기반. 화면은 `useAppState()` / `useAppDispatch()`로 접근
-- `sync()` 가 **15초마다** 서버에서 내 정보·캐릭터·그룹·미션·식단을 다시 받아옴
+- `sync()` 가 **15초마다** 서버에서 내 정보·캐릭터·그룹·미션·식단·오늘의 피드를 다시 받아옴
 - 상태는 localStorage에 자동 저장되어 새로고침해도 남음
 
 ---
@@ -96,14 +98,15 @@ function handleLeaveGroup() {
   navigate('/my');
 }
 
-// ✓ 서버에도 알려야 진짜로 나가집니다
+// ✓ 서버에도 알려야 진짜로 나가지고, 실패했을 땐 화면을 바꾸지 않아야
+//   "나갔는데 다시 들어와 있다"처럼 보이지 않습니다
 function handleLeaveGroup() {
   leaveGroup()
-    .catch(() => {})
-    .finally(() => {
+    .then(() => {
       dispatch({ type: 'LEAVE_GROUP' });
       navigate('/my');
-    });
+    })
+    .catch((e) => setError(e?.message || '나가기에 실패했어요'));
 }
 ```
 
@@ -213,6 +216,8 @@ PRD 8번은 "설정된 시간에 미션이 동시에 생성된다"이므로, 지
 - **토큰은 서버 삭제가 끝난 뒤에** 지웁니다. 먼저 지우면 삭제 요청이 401로 거절됩니다.
 - **실패하면 화면을 바꾸지 않습니다.** 실패했는데 로그아웃시키면 지워진 줄 알게 됩니다.
 
+같은 원칙을 그룹 나가기·방 설정 저장·캐릭터 생성에도 적용했습니다 (아래 "최근 수정 (2026-08-15)" 참고).
+
 ### 15. 미션이 밋밋하면 프론트 문제가 아닙니다
 
 미션 문구가 매일 비슷하거나 사진 인증이 `잠시 후 다시 시도해주세요`로 계속 실패하면,
@@ -258,60 +263,33 @@ PRD 8번은 "설정된 시간에 미션이 동시에 생성된다"이므로, 지
 
 ---
 
-## 프론트에서 해야 할 일 (2026-08-15 기준)
+## 최근 수정 (2026-08-15)
 
-백엔드는 준비돼 있는데 화면에서 아직 안 쓰거나, 실패했을 때 사용자가 모르게 넘어가는 것들입니다.
-**위에서부터 급한 순서**입니다.
+백엔드가 만들어둔 그룹 피드 API를 연결하고, 서버 거절이 조용히 묻히던 곳들을 정리했습니다.
+아래 두 가지가 직전까지 "프론트에서 해야 할 일" 1순위·2순위였던 항목입니다.
 
-### 1순위 — 반응·댓글을 서버에 연결 ⚠️ 기능이 반쪽입니다
+1. **그룹 피드 반응·댓글이 내 기기에만 보이던 문제** — 반응(❤️👍😂😮😢)·댓글이
+   `AppContext`에만 쌓여서 남긴 사람 화면에만 보이고 그룹원에게는 안 보였습니다.
+   백엔드의 `GET/POST /api/feed` 세 엔드포인트에 연결해, 응답으로 온 갱신된 피드 전체를
+   그대로 반영하도록 수정. 화면은 기존처럼 즉시 로컬 리듀서로 반영(낙관적 업데이트)하고,
+   서버 응답으로 다시 한번 맞춰 그 사이 다른 그룹원이 남긴 것까지 함께 받아옵니다.
+   (`api/feedApi.js` 신규, `context/AppContext.jsx`, `pages/GroupFeedPage.jsx`,
+   `components/CommentSheet.jsx`)
+2. **서버가 거절해도 조용히 묻히던 8곳** — 화면을 먼저 바꾼 뒤 서버에 보내고 `.catch`가
+   없어서, 실패해도 아무 일 없다는 듯 넘어갔다가 15초 뒤 `sync()`가 조용히 되돌리고
+   있었습니다. 성공했을 때만 화면을 바꾸고, 실패하면 사유를 보여주도록 수정.
+   - `pages/ShopPage.jsx` — 의상 구매·착용, 캐릭터 종 변경
+   - `pages/GroupCreatePage.jsx` — 그룹 생성 (실패 시 "다시 시도" 버튼 추가)
+   - `pages/OnboardingPage.jsx` — 온보딩 저장 (실패해도 그룹 화면으로 넘어가던 것 수정)
+   - `pages/SettingsPage.jsx` — 닉네임 저장
+   - `pages/GroupSettingsPage.jsx` — 방 설정 저장, 그룹 나가기
+   - `pages/CharacterCreatePage.jsx` — 캐릭터 생성, 닉네임 저장
 
-지금 반응(❤️👍😂😮😢)과 댓글이 `AppContext`에만 쌓입니다. **남긴 사람 화면에만 보이고
-그룹원에게는 안 보입니다.** 서로 응원하는 게 목적인 기능이라 이대로면 의미가 없습니다.
+---
 
-백엔드 API는 만들어져 있습니다. 셋 다 **갱신된 피드 전체**를 돌려주므로 응답을 그대로 반영하면 됩니다.
+## 남은 것
 
-| 무엇 | API | 보내는 값 |
-|---|---|---|
-| 조회 | `GET /api/feed` | — |
-| 반응 | `POST /api/feed/reactions` | `{ targetUserId, emoji }` |
-| 댓글 | `POST /api/feed/comments` | `{ text }` |
-
-```js
-{
-  reactions: { "12": { counts: { "❤️": 2, "👍": 1 }, myEmoji: "❤️" } },  // 키는 userId 문자열
-  comments: [{ id, authorUserId, authorNickname, me, text, createdAt }]
-}
-```
-
-**주의할 점 세 가지:**
-
-- **`member.id`를 그대로 `targetUserId`로 보내면 안 됩니다.** `buildRanking()`이 나에게는
-  `id: 'me'`를 주고 그룹원에게만 실제 userId를 줍니다. `'me'`는 `state.auth.userId`로 바꿔 보내세요.
-  서버 응답의 `reactions` 키도 실제 userId라 화면에 맞출 때 같은 변환이 필요합니다.
-- 반응 규칙은 지금 `TOGGLE_REACTION` 리듀서와 **같습니다**(같은 이모지 재전송=취소, 다른 이모지=교체).
-  리듀서 로직은 그대로 두고 호출만 붙이면 됩니다.
-- 작성자 표시는 `authorNickname`과 `me`로 만드세요. 서버는 `'나'`/`'그룹원'` 같은 화면용 문구를
-  만들지 않습니다. 모두 **오늘 기준**이라 날짜가 바뀌면 새 피드가 됩니다.
-
-### 2순위 — 서버가 거절했을 때 사용자에게 알리기
-
-`.then(sync)`만 붙어 있고 `.catch`가 없는 곳들입니다. 화면을 먼저 바꾼 뒤 서버에 보내기 때문에,
-**서버가 거절하면 오류가 조용히 묻히고 15초 뒤 `sync()`가 되돌립니다.** 사용자 입장에서는
-"샀는데 잠시 뒤 없어졌다"로 보입니다.
-
-| 파일 | 줄 | 무엇이 실패할 수 있나 |
-|---|---|---|
-| `pages/ShopPage.jsx` | `buyOutfit(item.id).then(sync)` | 코인 부족(409) — 다른 기기에서 먼저 썼거나 로컬 코인이 낡았을 때 |
-| `pages/ShopPage.jsx` | `wearOutfit(outfitId).then(sync)` | 보유하지 않은 의상(409) |
-| `pages/ShopPage.jsx` | `changeSpecies(value).then(sync)` | 서버 오류 |
-| `pages/GroupCreatePage.jsx` | `createGroup({ myUserId }).then(setGroup)` | 실패하면 **초대 코드가 영영 안 뜹니다** |
-| `pages/OnboardingPage.jsx` | `submitOnboarding(...).then(() => sync())` | 실패해도 `.finally`로 그룹 화면에 갑니다 — 미션이 안 만들어진 채로 |
-| `pages/SettingsPage.jsx` | `saveNickname(nickname).catch(() => {})` | 실패해도 **"저장됨"이 뜹니다** |
-
-`MissionVerifyPage`·`MealUploadPage`·`SettingsPage`의 탈퇴는 이미 `.catch`로 오류를 화면에
-보여주고 있습니다. 같은 방식으로 맞춰주세요.
-
-### 3순위 — 정리해도 되는 것
+### 정리해도 되는 것
 
 - `nextUpcomingMission` / `visibleMissions` / `isMissionUnlocked` — 미션이 하루치 한 번에
   열리도록 바뀌면서 지금은 항상 통과합니다. 서버가 다시 `unlockTime`을 채우면 그대로 동작하므로
@@ -322,9 +300,9 @@ PRD 8번은 "설정된 시간에 미션이 동시에 생성된다"이므로, 지
 ### 백엔드에 알려야 하는 것
 
 - **의상을 추가·교체하면 반드시 알려주세요.** `ShopPage.jsx`의 `OUTFIT_SETS`와 백엔드
-  `OutfitCatalog.ITEMS`는 **id와 가격이 항상 같아야 합니다.** 이번에 어긋나서 세일러·코트·탐정을
+  `OutfitCatalog.ITEMS`는 **id와 가격이 항상 같아야 합니다.** 한 번 어긋나서 세일러·코트·탐정을
   사려 하면 `SHOP_001 존재하지 않는 의상`으로 거절됐고, 파자마는 프론트 30 / 백엔드 35코인이었습니다.
-  (지금은 맞춰뒀습니다. 예전 의상을 입고 있던 사람은 백엔드가 기본 의상으로 바꿔 내려보냅니다.)
+  (지금은 맞춰져 있습니다: pajama 30 / sailor 35 / coat 40 / detective 50.)
 - **미션이 밋밋하거나 사진 인증이 계속 실패하면** 프론트 문제가 아닙니다. 백엔드의 OpenAI
   사용량 한도(무료 등급 하루 50회)가 찬 것입니다. 한도를 넘기면 서버가 고정 문구로 대체해서
   화면은 멀쩡한데 내용만 밋밋해집니다. 자세한 건 `RISE-server/README.md`의 "OpenAI 사용량 한도".
