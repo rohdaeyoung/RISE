@@ -5,7 +5,7 @@ import {
   fetchOrCreateTodayMissions,
   generateDailyMissions,
 } from '../api/missionApi';
-import { isBackendEnabled } from '../api/client';
+import { isBackendEnabled, setSessionExpiredHandler } from '../api/client';
 import { fetchCharacter, fetchMe, fetchOnboarding } from '../api/profileApi';
 import { fetchMyGroup } from '../api/groupApi';
 import { fetchTodayMeals } from '../api/mealApi';
@@ -598,6 +598,16 @@ export function AppProvider({ children }) {
     dispatch({ type: 'SYNC_DAY' });
     const id = setInterval(() => dispatch({ type: 'SYNC_DAY' }), 60_000);
     return () => clearInterval(id);
+  }, []);
+
+  // 토큰이 만료되면 로컬 상태도 비우고 로그인 화면으로 돌려보낸다.
+  //
+  // 이걸 안 하면 화면은 로그인된 것처럼 남는다. 로그인 가드(App.jsx RequireAuth)가 보는 건
+  // localStorage의 auth.userId라서, 토큰만 죽고 그 값이 남아 있으면 통과시켜 준다. 그 상태로는
+  // 모든 요청이 거절되므로 어제 화면이 그대로 굳고 인증도 되지 않는다.
+  useEffect(() => {
+    setSessionExpiredHandler(() => dispatch({ type: 'LOGOUT' }));
+    return () => setSessionExpiredHandler(null);
   }, []);
 
   const sync = useBackendSync(state, dispatch);

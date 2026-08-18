@@ -25,6 +25,22 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// 토큰이 만료됐을 때 알림을 받을 곳(AppContext). 여기서 직접 상태를 건드릴 수 없어 콜백으로 넘긴다.
+let onSessionExpired = null;
+
+export function setSessionExpiredHandler(handler) {
+  onSessionExpired = handler;
+}
+
+// 토큰 만료를 뜻하는 서버 응답인가.
+//
+// 상태 코드만 봐서는 안 된다. 로그인 실패(AUTH_002)도 401이라, 401을 전부 만료로 처리하면
+// 비밀번호를 한 번 틀렸을 때 "로그인이 만료됐어요"가 뜬다. 서버가 토큰 문제에만 붙이는
+// AUTH_003으로 좁힌다 (JwtAuthenticationEntryPoint).
+function isSessionExpired(status, code) {
+  return status === 401 && code === 'AUTH_003';
+}
+
 // 백엔드는 사진을 "/api/files/{id}" 같은 상대 경로로 내려준다. 프론트는 다른 주소(개발 시 5173,
 // 배포 시 정적 호스팅)에서 돌아가므로 그대로 <img src>에 넣으면 프론트 서버를 찾아가 깨진다.
 // data:/http: 로 시작하는 값(업로드 직후 미리보기 등)은 이미 완전한 주소라 그대로 둔다.
@@ -57,6 +73,14 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
 
   if (!res.ok || payload?.success === false) {
     const error = payload?.error;
+
+    // 토큰이 만료되면 남은 요청도 전부 거절된다. 여기서 정리하지 않으면 sync()가 첫 요청에서
+    // 멈춰 화면을 갱신하지 못하고, localStorage에 남은 어제 화면이 그대로 붙박인다.
+    // (서버에는 오늘 미션이 정상 생성돼 있는데도 "미션이 안 바뀐다"로 보이던 원인.)
+    if (isSessionExpired(res.status, error?.code)) {
+      clearToken();
+      onSessionExpired?.();
+    }
     // status와 code를 함께 실어 보낸다. "서버가 아니라고 답한 것"과 "연결이 안 된 것"을 호출부에서
     // 구분해야 하는 경우가 있다 — 예를 들어 그룹 조회가 403이면 정말 그룹이 없는 것이므로 로컬
     // 상태를 지워야 하지만, 네트워크 오류라면 지우면 안 된다(잠깐 끊겼다고 그룹이 사라지면 안 됨).
