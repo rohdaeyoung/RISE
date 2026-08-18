@@ -25,17 +25,63 @@ backend/    Spring Boot    → Railway  (배포 루트 디렉터리: backend)
 - [frontend/README.md](frontend/README.md) — 화면 구조, 상태 관리, 고칠 때 주의할 것
 - [backend/README.md](backend/README.md) — API, 배포, 심사용 데모 계정, 서버 이전 절차
 
-## 빠르게 띄우기
+## 처음 받은 사람이 실행하는 법
+
+아래 순서 그대로 하면 됩니다. **실제로 새로 clone해서 확인한 절차입니다.**
+
+### 프론트만 띄우기 (백엔드 없이도 전체 화면이 돕니다)
 
 ```bash
-# 백엔드 (MySQL 필요)
-cd backend && gradle bootRun
-
-# 프론트
-cd frontend && npm install && npm run dev
+cd frontend
+npm install
+npm run dev
 ```
 
-`VITE_API_BASE_URL`을 비우면 백엔드 없이 mock 모드로도 전체 화면이 돌아갑니다.
+끝입니다. `.env`를 만들지 않으면 mock 모드로 동작해서 로그인부터 7일 결과까지
+전 화면을 그대로 볼 수 있습니다. 백엔드도 MySQL도 필요 없습니다.
+
+### 백엔드까지 띄우기
+
+MySQL이 필요합니다. 없으면 도커로 한 줄이면 됩니다.
+
+```bash
+docker run --name withu-mysql -p 3306:3306 \
+  -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -e MYSQL_DATABASE=withu -d mysql:8
+```
+
+이미 MySQL이 있다면 `withu` 데이터베이스만 만들어 두세요.
+
+```sql
+CREATE DATABASE withu CHARACTER SET utf8mb4;
+```
+
+그다음 **`local` 프로필로** 실행합니다.
+
+```bash
+cd backend
+SPRING_PROFILES_ACTIVE=local gradle bootRun
+```
+
+`http://localhost:8080` 에서 뜹니다. 표는 JPA가 알아서 만듭니다.
+
+> **`SPRING_PROFILES_ACTIVE=local`을 빼면 뜨지 않습니다.** 기본 프로필은 배포용이라
+> DB 접속 정보를 환경변수에서 찾고, 없으면 `Access denied for user 'root'`로 실패합니다.
+> MySQL이 3306이 아닌 포트에 있으면 `DB_PORT=3307`처럼 함께 넘기세요.
+
+프론트를 이 백엔드에 붙이려면 `frontend/.env.local`을 만드세요.
+
+```
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+### 알아두면 좋은 것
+
+- **OpenAI 키는 없어도 됩니다.** 키가 없으면 미션 생성이 고정 문구로 대체되어
+  앱 전체가 그대로 돌아갑니다. 실제 AI 미션과 사진 판정을 보려면
+  `backend/.env`에 `OPENAI_API_KEY=...`를 넣으세요.
+- **심사용 데모 계정을 만들려면** `DEMO_SEED=true`를 함께 넘기세요.
+  7일차까지 진행된 4인 그룹이 기동할 때 만들어집니다.
+- Gradle wrapper 다운로드가 막힌 네트워크에서는 `./gradlew` 대신 시스템 `gradle`을 쓰세요.
 
 ## 심사용 계정
 
