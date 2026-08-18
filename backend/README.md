@@ -16,12 +16,17 @@ WITHU — AI 기반 개인 맞춤 건강 미션과 그룹 동기부여를 결합
 | 무엇 | 주소 |
 |---|---|
 | **웹앱** (팀원·심사위원에게 줄 주소) | https://rise-client-rohdaeyoungs-projects.vercel.app |
-| API 문서 (Swagger) | https://rise-server-production.up.railway.app/swagger-ui.html |
-| 백엔드 서버 | `rise-server-production.up.railway.app` — 화면이 없는 API 서버라 브라우저로 열면 403이 정상입니다 |
+| API 문서 (Swagger) | https://1-201-117-9.nip.io/swagger-ui.html |
+| 백엔드 서버 | `1-201-117-9.nip.io` — 화면이 없는 API 서버라 브라우저로 열면 403이 정상입니다 |
 
 **테스트 계정: `test@withu.app` / `withu1234`** (그룹 코드 `TEAM33`, Day 7 상태)
 
-프론트는 Vercel, 백엔드와 MySQL은 Railway에 올라가 있고 `main`에 push하면 양쪽 다 자동 재배포됩니다.
+프론트는 Vercel, 백엔드와 MySQL은 해커톤에서 제공받은 가비아 클라우드 서버에 올라가 있습니다.
+
+백엔드 주소가 IP처럼 생긴 이유는, 도메인을 사지 않고 HTTPS를 붙이기 위해서입니다. `nip.io`는
+`1-201-117-9.nip.io` 같은 이름을 그대로 `1.201.117.9`로 풀어주는 무료 DNS라, 이 이름으로
+Let's Encrypt 인증서를 받을 수 있습니다. 프론트가 https라 백엔드도 https여야 하는데
+(브라우저가 https 페이지에서 http 요청을 막습니다) IP만으로는 인증서를 받을 수 없어서 쓴 방법입니다.
 
 ### ⚠️ 배포 전 반드시 해야 할 것 (안 하면 서버가 안 뜨거나 뚫립니다)
 
@@ -268,7 +273,7 @@ npm install && npm run dev
     사진 인증 1회 = 요청 1회, 미션 세트 생성 1회 = 요청 1회이므로 **하루 50회면 그룹 하나가
     이틀도 못 씁니다. 심사 당일에 반드시 터집니다.**
     → **해야 할 일: 결제 수단을 등록하거나(한도 해제), 해커톤에서 주는 키로 교체.**
-    Railway 환경변수 `OPENAI_API_KEY`만 바꾸면 됩니다.
+    서버의 `/etc/withu/withu.env`에서 `OPENAI_API_KEY`만 바꾸고 `systemctl restart withu` 하면 됩니다.
     → 코드 쪽에서는 한도 초과(429)를 `AI_001`로 따로 구분했습니다(`OpenAiErrors`).
     로그에 "사용량 한도에 걸렸습니다 — 결제 수단 등록이나 키 교체가 필요합니다"가 찍히므로,
     다음에 같은 증상이 나오면 서버 버그를 뒤지지 않고 바로 판단할 수 있습니다.
@@ -540,7 +545,7 @@ Day 7은 8/25로 제출 마감(8/21)을 넘깁니다. 그래서 **이미 6일을
 | 항목 | 내용 |
 |---|---|
 | JWT 기본 키 배포 방지 | local 프로필이 아닌데 공개된 기본 키를 쓰면 **서버가 기동 실패**. 키 길이(48바이트)도 함께 검사 |
-| **CORS 좁히기 (2026-08-15 배포 적용)** | Railway에 `CORS_ALLOWED_ORIGINS`를 넣어 실제로 닫았습니다. 그 전까지는 기본값 `*`라 아무 사이트나 API를 부를 수 있었습니다 (아래 "CORS 설정값" 참고) |
+| **CORS 좁히기 (2026-08-15 배포 적용)** | `CORS_ALLOWED_ORIGINS`를 넣어 실제로 닫았습니다. 2026-08-18 가비아 서버로 옮길 때 이 값을 빠뜨려 잠시 다시 열렸다가, `evil.example.com`으로 확인해 되잡았습니다. 그 전까지는 기본값 `*`라 아무 사이트나 API를 부를 수 있었습니다 (아래 "CORS 설정값" 참고) |
 | 비밀번호 | BCrypt 해시 저장, 가입 시 8자 이상 강제 |
 | 소유권 검사 | 남의 미션 인증 시도 → `COMMON_003 권한 없음` (실제 다른 계정 토큰으로 확인) |
 | 인증 필수 | 토큰 없이 API 호출 → 403 |
@@ -566,13 +571,13 @@ Day 7은 8/25로 제출 마감(8/21)을 넘깁니다. 그래서 **이미 6일을
 
 ### CORS 설정값 (서버를 옮기면 반드시 다시 넣어야 합니다)
 
-`CORS_ALLOWED_ORIGINS`는 **코드가 아니라 배포 플랫폼의 환경변수**에 들어 있습니다. 그래서
-저장소만 옮기면 따라오지 않습니다. 안 넣으면 기본값 `*`로 돌아가 다시 열립니다.
+`CORS_ALLOWED_ORIGINS`는 **코드가 아니라 서버의 환경변수**에 들어 있습니다(`/etc/withu/withu.env`).
+그래서 저장소만 옮기면 따라오지 않습니다. 안 넣으면 기본값 `*`로 돌아가 다시 열립니다.
 
-현재 Railway에 넣은 값입니다. 콤마로 구분하고 **띄어쓰기를 넣지 마세요.**
+현재 서버에 넣은 값입니다. 콤마로 구분하고 **띄어쓰기를 넣지 마세요.**
 
 ```
-https://rise-client-rohdaeyoungs-projects.vercel.app,https://*-rohdaeyoungs-projects.vercel.app,http://localhost:5173
+https://rise-client-rohdaeyoungs-projects.vercel.app,https://rise-client-*-rohdaeyoungs-projects.vercel.app,http://localhost:5173
 ```
 
 세 개를 다 넣는 이유가 있습니다. 실서비스 주소 하나만 넣으면 나머지가 막힙니다.
@@ -587,7 +592,7 @@ https://rise-client-rohdaeyoungs-projects.vercel.app,https://*-rohdaeyoungs-proj
 아래로 확인하세요 — 공격자 주소는 **403이고 `access-control-allow-origin` 줄이 없어야** 정상입니다.
 
 ```bash
-curl -s -D- -o /dev/null -X OPTIONS https://rise-server-production.up.railway.app/api/auth/login \
+curl -s -D- -o /dev/null -X OPTIONS https://1-201-117-9.nip.io/api/auth/login \
   -H "Origin: https://evil.example.com" -H "Access-Control-Request-Method: POST" \
   | grep -i "^HTTP/\|access-control-allow-origin"
 ```
@@ -639,10 +644,31 @@ AI 장애 `MISSION_005`). 지금은 서버 메시지를 그대로 띄우고 있�
 
 ---
 
-## 해커톤에서 받는 서버로 옮길 때
+## 해커톤에서 받은 서버(가비아 클라우드)로 옮긴 기록 — 2026-08-18 완료
 
-**코드 수정 없이 환경변수만 바꾸면 됩니다.** 주소·포트·시간대·DB가 전부 환경변수로 빠져 있고,
+**코드는 한 줄도 안 고쳤습니다.** 주소·포트·시간대·DB가 전부 환경변수로 빠져 있고,
 사진도 파일이 아니라 DB에 저장하므로 서버가 바뀌어도 따라갑니다.
+
+옮긴 뒤 구성은 이렇습니다.
+
+```
+[브라우저] ──https──> [Vercel 프론트]
+                          │ https
+                          ▼
+                    [가비아 서버 1.201.117.9]
+                      ├─ Caddy :443        Let's Encrypt 인증서, 자동 갱신
+                      ├─ Spring Boot :8080  systemd(withu.service), 죽으면 자동 재시작
+                      └─ MySQL 8 :3306      같은 서버 안, 외부에 열지 않음
+```
+
+주소가 `1-201-117-9.nip.io`인 이유는 도메인을 사지 않고 HTTPS를 붙이기 위해서입니다.
+프론트가 https라 백엔드도 https여야 하는데(브라우저가 https 페이지에서 http 요청을 막습니다)
+IP만으로는 인증서를 받을 수 없습니다. `nip.io`가 그 이름을 그대로 `1.201.117.9`로 풀어주므로
+이 이름으로 인증서를 받았습니다.
+
+**보안그룹에 80번을 열 수 없어서** 흔히 쓰는 HTTP-01 방식 대신 443만 쓰는 **TLS-ALPN-01**로
+발급받았습니다. Caddyfile에서 `disable_http_challenge`가 그 설정입니다. 80을 열 수 있는
+환경으로 옮긴다면 이 줄을 지우는 편이 낫습니다(http로 들어온 사람을 https로 넘겨줍니다).
 
 ### 옮기기 전에 확인할 것
 
@@ -671,29 +697,45 @@ DEMO_SEED=true            # 심사용 데모 계정이 필요할 때만
 `JWT_ACCESS_VALIDITY_MS`는 넣지 않아도 됩니다. 기본값이 7일(`604800000`)이라 챌린지 한 사이클
 동안은 재로그인 없이 쓸 수 있습니다. 더 짧게 잡으면 사이클 도중에 로그인이 끊깁니다.
 
-### 옮긴 뒤 이것만 확인하면 됩니다
+### 옮긴 뒤 확인한 것 (또 옮기게 되면 이대로 다시 하세요)
 
 ```bash
 # 1. 서버가 살아 있는가 (403이 정상 — 화면 없는 API 서버라 인증 없이는 거절)
-curl -o /dev/null -w "%{http_code}\n" https://새-서버-주소/api/auth/me
+curl -o /dev/null -w "%{http_code}\n" https://1-201-117-9.nip.io/api/auth/me
 
-# 2. 시간대가 한국인가 — 가입한 시각이 지금 한국 시간과 같아야 한다
-curl -s -X POST https://새-서버-주소/api/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{"email":"tz-check@withu.app","password":"withu1234"}'
-
-# 3. CORS가 좁혀졌는가 — 403만 나오고 허용 헤더는 안 보여야 정상
-curl -s -D- -o /dev/null -X OPTIONS https://새-서버-주소/api/auth/login \
+# 2. CORS가 좁혀졌는가 — 403만 나오고 허용 헤더는 안 보여야 정상
+curl -s -D- -o /dev/null -X OPTIONS https://1-201-117-9.nip.io/api/auth/login \
   -H "Origin: https://evil.example.com" \
   -H "Access-Control-Request-Method: POST" | grep -i "^HTTP/\|access-control-allow-origin"
 
-# 4. 진짜 프론트는 통과하는가 — 3번만 보고 끝내면 프론트까지 막아놓고 모를 수 있다
-curl -s -D- -o /dev/null -X OPTIONS https://새-서버-주소/api/auth/login \
-  -H "Origin: https://새-프론트-주소" \
+# 3. 진짜 프론트는 통과하는가 — 2번만 보고 끝내면 프론트까지 막아놓고 모를 수 있다
+curl -s -D- -o /dev/null -X OPTIONS https://1-201-117-9.nip.io/api/auth/login \
+  -H "Origin: https://rise-client-rohdaeyoungs-projects.vercel.app" \
   -H "Access-Control-Request-Method: POST" | grep -i "access-control-allow-origin"
+
+# 4. 로그인이 실제로 되는가
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://1-201-117-9.nip.io/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@withu.app","password":"withu1234"}'
 ```
 
-프론트는 Vercel 환경변수 `VITE_API_BASE_URL`을 새 주소로 바꾸고 재배포하면 끝입니다.
+2026-08-18 실측 결과입니다.
+
+| 확인 | 결과 |
+|---|---|
+| 인증 필요 엔드포인트 9종 | 전부 200 |
+| `evil.example.com` | **403**, 허용 헤더 없음 |
+| 실서비스·미리보기·`localhost:5173` | 전부 허용 |
+| Swagger | 200 |
+| 인증서 | Let's Encrypt, 2026-11-16까지 |
+
+**시간대 확인은 굳이 계정을 만들지 마세요.** 예전 절차는 `tz-check@withu.app`으로 가입해
+보라고 했는데, 그렇게 만든 계정이 전체 랭킹에 그대로 남아 나중에 지워야 했습니다.
+서버에서 `timedatectl`로 KST인지 보는 것으로 충분합니다.
+
+프론트는 Vercel 환경변수 `VITE_API_BASE_URL`을 새 주소로 바꾸고 **재배포**하면 끝입니다.
+Vite는 빌드할 때 이 값을 코드에 박기 때문에, 환경변수만 바꾸고 재배포를 안 하면 아무것도
+안 바뀝니다. 재배포할 때 "Use existing Build Cache"는 **꺼야** 합니다.
 
 ### 시간대를 왜 코드에서 고정했나 (건드리지 마세요)
 
@@ -717,60 +759,157 @@ UTC 서버에서 "오늘"이 바뀌는 시점  → 한국 시간 오전 9시
 
 ---
 
-## 배포 (Railway + Vercel)
+## 배포 (가비아 클라우드 + Vercel)
 
 **순서가 중요합니다.** 백엔드와 프론트가 서로의 주소를 알아야 하는데, 주소는 배포해야 생깁니다.
 그래서 백엔드를 먼저 띄우고 → 그 주소를 프론트에 넣고 → 프론트 주소를 다시 백엔드 CORS에 넣습니다.
 
-### 1단계. Railway에 백엔드 배포
+### 1단계. 서버 준비 (Rocky Linux 8)
 
-1. Railway에서 **New Project → Deploy from GitHub repo → `RISE-server`** 선택 (브랜치 `main`)
-   - 저장소 루트의 `Dockerfile`을 자동으로 인식합니다.
-2. 같은 프로젝트에 **New → Database → MySQL** 추가
-3. 백엔드 서비스의 **Variables**에 아래를 넣습니다.
+보안그룹에서 **22번과 443번**이 열려 있어야 합니다. 80번은 없어도 됩니다(아래 3단계 참고).
 
-| 변수 | 값 |
-|---|---|
-| `SPRING_PROFILES_ACTIVE` | `prod` |
-| `DB_URL` | `jdbc:mysql://${{MySQL.MYSQLHOST}}:${{MySQL.MYSQLPORT}}/${{MySQL.MYSQLDATABASE}}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Seoul` |
-| `DB_USERNAME` | `${{MySQL.MYSQLUSER}}` |
-| `DB_PASSWORD` | `${{MySQL.MYSQLPASSWORD}}` |
-| `JWT_SECRET` | `openssl rand -hex 32` 로 만든 64자 문자열 |
-| `OPENAI_API_KEY` | 팀장이 발급한 키 |
-| `DEMO_SEED` | `true` |
+```bash
+sudo dnf install -y git java-21-openjdk-devel mysql-server
+sudo systemctl enable --now mysqld
+```
 
-> `${{MySQL.*}}`는 Railway가 MySQL 애드온 값을 대신 채워주는 문법입니다. 직접 타이핑하지 말고
-> Variables 화면의 참조 기능을 쓰세요.
+DB와 전용 계정을 만듭니다. **비밀번호는 서버에서 만들어 쓰세요** — 채팅·문서에 남기지 않기 위해서입니다.
 
-4. **Settings → Networking → Generate Domain**으로 공개 주소를 만듭니다.
-5. `https://<주소>/swagger-ui.html`이 열리면 성공입니다.
+```bash
+DBPASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 28)
+sudo mysql <<SQL
+CREATE DATABASE withu CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER 'withu'@'localhost' IDENTIFIED BY '${DBPASS}';
+GRANT ALL PRIVILEGES ON withu.* TO 'withu'@'localhost';
+SQL
+```
 
-### 2단계. Vercel에 프론트 배포
+### 2단계. 백엔드 배포
 
-1. Vercel에서 **Add New → Project → `RISE-client`** 선택 (브랜치 `main`)
-2. **Root Directory를 `frontend`로 지정** — 이걸 빠뜨리면 빌드가 실패합니다.
-3. **Environment Variables**에 1단계에서 만든 백엔드 주소를 넣습니다.
+레포에서 직접 받아 빌드합니다. 이렇게 하면 제출한 저장소와 실제 배포가 같은 코드임이 분명해집니다.
+
+```bash
+sudo mkdir -p /opt/withu && sudo chown $USER /opt/withu
+git clone --depth 1 https://github.com/rohdaeyoung/RISE.git /opt/withu/src
+cd /opt/withu/src/backend && ./gradlew clean bootJar -x test --no-daemon
+cp build/libs/withu-server-0.0.1-SNAPSHOT.jar /opt/withu/app.jar
+```
+
+환경변수는 **root만 읽는 파일**에 둡니다(`/etc/withu/withu.env`, 권한 600).
 
 ```
-VITE_API_BASE_URL = https://<Railway에서 만든 주소>
+SPRING_PROFILES_ACTIVE=prod
+PORT=8080
+TZ=Asia/Seoul
+DB_URL=jdbc:mysql://127.0.0.1:3306/withu?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true
+DB_USERNAME=withu
+DB_PASSWORD=<위에서 만든 값>
+DDL_AUTO=update
+JWT_SECRET=<openssl rand -base64 48>
+OPENAI_API_KEY=<대회에서 받은 키>
+DEMO_SEED=true
+CORS_ALLOWED_ORIGINS=<4단계에서 채움>
+```
+
+systemd에 등록하면 **서버가 재부팅돼도, 프로세스가 죽어도 알아서 다시 뜹니다.**
+`/etc/systemd/system/withu.service`:
+
+```ini
+[Unit]
+Description=WITHU Spring Boot backend
+After=network-online.target mysqld.service
+Requires=mysqld.service
+
+[Service]
+User=rocky
+EnvironmentFile=/etc/withu/withu.env
+ExecStart=/usr/bin/java -Xms256m -Xmx1024m -jar /opt/withu/app.jar
+SuccessExitStatus=143
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now withu
+```
+
+### 3단계. HTTPS 붙이기 (Caddy)
+
+프론트가 https라 백엔드도 https여야 합니다. 도메인을 사지 않고 `nip.io`로 해결했습니다.
+
+```bash
+sudo dnf install -y 'dnf-command(copr)'
+sudo dnf copr enable -y @caddy/caddy && sudo dnf install -y caddy
+```
+
+`/etc/caddy/Caddyfile`:
+
+```
+{
+	auto_https disable_redirects
+	email <연락 가능한 메일>
+}
+
+1-201-117-9.nip.io {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+	encode gzip
+	reverse_proxy 127.0.0.1:8080
+}
+```
+
+`disable_http_challenge`가 **80번 없이 443만으로 인증서를 받게 하는 설정**입니다(TLS-ALPN-01).
+80을 열 수 있으면 이 줄과 `auto_https disable_redirects`를 지우는 편이 낫습니다.
+
+```bash
+sudo systemctl enable --now caddy
+```
+
+`https://<이름>/swagger-ui.html`이 열리면 성공입니다.
+
+### 4단계. Vercel에 프론트 배포
+
+1. Vercel에서 **Add New → Project → `RISE`** 선택 (브랜치 `main`)
+2. **Root Directory를 `frontend`로 지정** — 이걸 빠뜨리면 빌드가 실패합니다.
+3. **Environment Variables**에 백엔드 주소를 넣습니다. **끝에 슬래시를 붙이지 마세요**
+   (`/api/...`를 이어 붙이므로 `//api/...`가 되어 전부 404 납니다).
+
+```
+VITE_API_BASE_URL = https://1-201-117-9.nip.io
 ```
 
 > 이 값은 **빌드 시점에 코드에 박히므로**, 나중에 바꾸면 반드시 재배포(Redeploy)해야 합니다.
+> 재배포할 때 "Use existing Build Cache"는 끄세요. 켜두면 옛 값이 박힌 캐시를 그대로 씁니다.
 
-### 3단계. 백엔드 CORS에 프론트 주소 등록
+### 5단계. 백엔드 CORS에 프론트 주소 등록
 
-Railway 백엔드 Variables에 추가하고 재배포합니다.
+`/etc/withu/withu.env`를 고치고 `sudo systemctl restart withu`.
 
-| 변수 | 값 |
-|---|---|
-| `CORS_ALLOWED_ORIGINS` | `https://<Vercel 주소>` |
+```
+CORS_ALLOWED_ORIGINS=https://rise-client-rohdaeyoungs-projects.vercel.app,https://rise-client-*-rohdaeyoungs-projects.vercel.app,http://localhost:5173
+```
 
-이걸 안 넣으면 모든 출처가 허용된 채로 돌아갑니다(동작은 하지만 열려 있음).
+이걸 안 넣으면 **모든 출처가 허용된 채로 돌아갑니다**(동작은 하지만 열려 있음).
+실제로 서버를 옮긴 직후 `*`인 상태로 며칠 둘 뻔했고, `evil.example.com`으로 요청해 보고서야
+발견했습니다. 옮길 때마다 위 "옮긴 뒤 확인한 것"의 2·3번을 꼭 돌리세요.
 
-### 4단계. 확인
+### 6단계. 확인
 
 프론트 주소에 접속해 `test@withu.app` / `withu1234` 로 로그인 →
 MY 화면에 미션이 뜨고, 그룹 탭에서 Day 7 결과가 보이면 연동 성공입니다.
+
+### 예전 배포(Railway)에 대하여
+
+2026-08-13 ~ 08-18에는 Railway + Vercel로 운영했습니다. 가비아 서버로 옮긴 뒤에도
+**만일을 대비해 2026-08-25까지 Railway를 켜둡니다.** 새 서버에 문제가 생기면 Vercel의
+`VITE_API_BASE_URL`만 되돌리고 재배포하면 즉시 복구됩니다. 저장소 루트의 `Dockerfile`은
+그때 쓰던 것이고, 지금도 유효합니다.
 
 ### 로컬에서 배포 이미지 검증하는 법
 
@@ -808,7 +947,7 @@ docker run -p 18080:8080 \
 한도는 하루 지나면 다시 풀립니다. 다만 50회는 심사 당일을 못 버팁니다.
 
 **제대로 된 해결**: OpenAI 계정에 결제 수단 등록, 또는 해커톤에서 주는 키로 교체.
-Railway 환경변수 `OPENAI_API_KEY`만 바꾸면 됩니다.
+서버의 `/etc/withu/withu.env`에서 `OPENAI_API_KEY`만 바꾸고 `systemctl restart withu` 하면 됩니다.
 
 ### 한도가 차면 서버가 알아서 다음 모델로 넘어갑니다
 
@@ -852,8 +991,8 @@ OPENAI_FALLBACK_MODELS=gpt-4.1-mini,gpt-4.1-nano    # 막히면 앞에서부터 
 
 ## 남은 일 (우선순위 순)
 
-1. **실제 배포 실행** — Dockerfile과 절차는 위 [배포](#배포-railway--vercel)에 정리돼 있고,
-   로컬 Docker로 검증까지 마쳤습니다. Railway/Vercel 계정에서 연결만 하면 됩니다.
+1. **AI 사진 판정 실사용 확인** — 서버 이전 후 OpenAI 키가 살아 있는 것(`/v1/models` 200)과
+   모델 3종 사용 가능은 확인했지만, 실제 사진을 올려 판정까지 도는 것은 아직 못 봤습니다.
 2. **프론트 초기 로딩 용량** — `vite-plugin-singlefile`이 이미지까지 HTML 하나에 넣어
    첫 화면이 **14MB(gzip 10MB)** 입니다. 플러그인을 빼면 초기 로딩이 약 100KB로 줄고
    이미지는 필요할 때 받습니다. 웹 배포에는 빼는 편이 낫지만, 단일 파일 데모 용도로
