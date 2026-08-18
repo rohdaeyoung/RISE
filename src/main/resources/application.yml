@@ -21,7 +21,10 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET:local-dev-secret-key-change-me-please-32bytes-min}
-  access-token-validity-ms: ${JWT_ACCESS_VALIDITY_MS:86400000}
+  # 7일. 예전 값(24시간)은 챌린지 한 사이클(7일)보다 짧아서, 하루만 지나도 로그인해 둔 브라우저의
+  # 모든 요청이 거절됐다. 리프레시 토큰이 없어 그때 다시 로그인하는 것 말고는 방법이 없으므로,
+  # 최소한 한 사이클 동안은 끊기지 않게 사이클 길이에 맞춘다.
+  access-token-validity-ms: ${JWT_ACCESS_VALIDITY_MS:604800000}
 
 openai:
   api-key: ${OPENAI_API_KEY:}
