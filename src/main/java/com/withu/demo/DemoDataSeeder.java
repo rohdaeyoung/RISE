@@ -3,6 +3,7 @@ package com.withu.demo;
 import com.withu.auth.entity.User;
 import com.withu.auth.repository.UserRepository;
 import com.withu.character.entity.Character;
+import com.withu.challenge.service.ChallengeService;
 import com.withu.character.repository.CharacterRepository;
 import com.withu.file.entity.StoredFile;
 import com.withu.file.repository.StoredFileRepository;
@@ -20,6 +21,7 @@ import com.withu.onboarding.entity.Gender;
 import com.withu.onboarding.entity.Goal;
 import com.withu.onboarding.entity.Onboarding;
 import com.withu.onboarding.repository.OnboardingRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -100,6 +102,8 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final StoredFileRepository storedFileRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
+    private final ChallengeService challengeService;
+    private final EntityManager entityManager;
 
     /** 마지막으로 데모 데이터를 만든 날. 날짜가 바뀌면 다시 만든다. */
     private volatile LocalDate seededOn;
@@ -151,9 +155,35 @@ public class DemoDataSeeder implements ApplicationRunner {
             seedMember(MEMBERS.get(i), users.get(i), group, today);
         }
 
+        settleChallenge(users.get(0).getId());
+
         seededOn = today;
-        log.info("심사용 데모 데이터를 생성했습니다. 계정={} / 그룹코드={} / {}일차",
+        log.info("심사용 데모 데이터를 생성했습니다. 계정={} / 그룹코드={} / {}일차 (7일 결과 정산 완료)",
                 DEMO_EMAIL, DEMO_GROUP_CODE, CYCLE_DAYS);
+    }
+
+    /**
+     * 7일 결과를 미리 정산해 둔다.
+     *
+     * <p>이걸 안 하면 결과는 심사위원이 그룹 화면에서 "7일 챌린지 결과 보기"를 <b>눌러야</b> 만들어진다.
+     * 사람이라면 누르겠지만, 심사를 AI가 대신 훑는 경우에는 그 버튼을 지나칠 수 있고 그러면
+     * 순위·뱃지·보너스 코인 같은 이 앱의 마무리가 통째로 안 보인다. 미리 만들어 두면
+     * {@code GET /api/challenges/summary}가 처음부터 결과를 돌려준다.
+     *
+     * <p>버튼을 눌러도 문제없다. {@code endChallenge}는 이미 정산된 사이클이면 저장된 결과를
+     * 그대로 돌려주므로 보상이 두 번 지급되지 않는다.
+     *
+     * <p>정산해도 오늘 미션·식단 인증·그룹 피드는 그대로 쓸 수 있다. 결과 화면은 따로 열리는 것이지
+     * 앱을 잠그는 것이 아니라서, 심사위원이 사진 인증을 직접 해보는 시연도 그대로 가능하다.
+     */
+    private void settleChallenge(Long demoUserId) {
+        // 시작일은 위에서 JPA를 우회해 SQL로 바꿨다. 그래서 영속성 컨텍스트에 들고 있는 Group은
+        // 아직 "오늘 시작한 그룹"이고, 그대로 정산을 부르면 isLastDay()가 false라
+        // "아직 챌린지가 끝나지 않았어요"로 튕긴다. 캐시를 비워 DB에서 다시 읽게 한다.
+        entityManager.flush();
+        entityManager.clear();
+
+        challengeService.endChallenge(demoUserId);
     }
 
     private User createUser(Member member) {
