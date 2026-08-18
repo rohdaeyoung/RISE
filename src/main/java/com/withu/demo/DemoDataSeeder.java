@@ -87,7 +87,6 @@ public class DemoDataSeeder implements ApplicationRunner {
             "채소 반찬 두 가지 이상 먹기", "야식 대신 물 마시기", "간식은 과일로 바꾸기");
     private static final List<String> LIFESTYLE_TITLES = List.of(
             "물 1.5L 마시기", "점심 후 10분 걷기", "자기 전 스트레칭 5분");
-    private static final int[] UNLOCK_OFFSET_MINUTES = {0, 210, 420};
     private static final int MISSIONS_PER_DAY = 3;
     private static final int COIN_PER_MISSION = 10;
     private static final int CYCLE_DAYS = Group.CHALLENGE_LENGTH_DAYS;
@@ -263,7 +262,6 @@ public class DemoDataSeeder implements ApplicationRunner {
         boolean lifestyle = seq == MISSIONS_PER_DAY - 1;
         List<String> pool = lifestyle ? LIFESTYLE_TITLES : DIET_TITLES;
         String title = pool.get(Math.floorMod(date.getDayOfYear() + seq, pool.size()));
-        LocalTime base = LocalTime.of(group.getMissionHour(), group.getMissionMinute());
         return Mission.builder()
                 .userId(userId)
                 .groupId(group.getId())
@@ -271,7 +269,10 @@ public class DemoDataSeeder implements ApplicationRunner {
                 .seq(seq)
                 .type(lifestyle ? MissionType.LIFESTYLE : MissionType.DIET)
                 .title(title)
-                .unlockTime(seq == 0 ? null : base.plusMinutes(UNLOCK_OFFSET_MINUTES[seq]))
+                // 실제 서비스와 같이 하루치를 한 번에 연다(MissionSetCreator도 null을 넣는다).
+                // 예전처럼 시간차로 열면 심사위원에게 미션이 1개만 보이고 "다음 미션은 오후 4:00에
+                // 도착해요"가 떠서, 생활습관 미션의 사진 인증을 오후까지 시연할 수 없다.
+                .unlockTime(null)
                 .build();
     }
 
