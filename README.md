@@ -7,7 +7,10 @@ AI가 매일 개인 맞춤 미션을 만들어 주고, 2~4인 그룹이 함께 7
 | | 주소 |
 |---|---|
 | 웹앱 | https://rise-client-rohdaeyoungs-projects.vercel.app |
-| API | https://rise-server-production.up.railway.app |
+| API | https://1-201-117-9.nip.io |
+| API 문서 | https://1-201-117-9.nip.io/swagger-ui.html |
+
+**테스트 계정: `test@withu.app` / `withu1234`** (그룹 코드 `TEAM33`, Day 7 상태)
 
 ## 이 저장소의 구조
 
@@ -16,9 +19,15 @@ AI가 매일 개인 맞춤 미션을 만들어 주고, 2~4인 그룹이 함께 7
 그래서 빌드도 배포도 각각 따로 돌아갑니다.
 
 ```
-frontend/   React + Vite   → Vercel   (배포 루트 디렉터리: frontend)
-backend/    Spring Boot    → Railway  (배포 루트 디렉터리: backend)
+frontend/   React + Vite   → Vercel        (배포 루트 디렉터리: frontend)
+backend/    Spring Boot    → 가비아 클라우드  (해커톤에서 제공받은 서버)
 ```
+
+백엔드는 2026-08-18에 Railway에서 해커톤 제공 서버로 옮겼습니다. API 주소가 IP처럼
+생긴 것은 도메인을 사지 않고 HTTPS를 붙이기 위해 `nip.io`를 쓴 것입니다
+(`1-201-117-9.nip.io` → `1.201.117.9`). 서버에서는 Caddy가 Let's Encrypt 인증서를
+받아 앞단을 맡고, 그 뒤에 Spring Boot와 MySQL이 systemd로 떠 있습니다.
+자세한 절차는 [backend/README.md](backend/README.md)의 "배포"에 있습니다.
 
 각 폴더의 README에 그쪽 이야기가 전부 들어 있습니다.
 
