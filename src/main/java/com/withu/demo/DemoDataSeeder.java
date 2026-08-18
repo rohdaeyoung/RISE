@@ -5,6 +5,10 @@ import com.withu.auth.repository.UserRepository;
 import com.withu.character.entity.Character;
 import com.withu.challenge.service.ChallengeService;
 import com.withu.character.repository.CharacterRepository;
+import com.withu.feed.entity.FeedComment;
+import com.withu.feed.entity.FeedReaction;
+import com.withu.feed.repository.FeedCommentRepository;
+import com.withu.feed.repository.FeedReactionRepository;
 import com.withu.file.entity.StoredFile;
 import com.withu.file.repository.StoredFileRepository;
 import com.withu.group.entity.Group;
@@ -50,7 +54,8 @@ import java.util.UUID;
  *
  * <p>대회 심사에서는 심사위원(또는 심사용 AI)이 테스트 계정 하나로 앱 전체를 둘러본다.
  * 그런데 방금 배포한 서버는 그룹이 Day 1이라, 7일 챌린지 결과 화면처럼 "시간이 지나야 보이는"
- * 기능을 볼 방법이 없다. 그래서 <b>이미 6일을 함께 달려온 4인 그룹</b>을 미리 만들어 둔다.
+ * 기능을 볼 방법이 없다. 그래서 <b>이미 6일을 함께 달려온 그룹</b>을 미리 만들어 둔다. 정원 4명 중 세 자리만 채우고
+ * 한 자리는 비워 둔다 — 부스에서 직접 가입해 합류해보는 사람을 위한 자리다.
  *
  * <p>서버가 뜰 때, 그리고 <b>날짜가 바뀔 때마다</b> 데모 계정 데이터를 지우고 다시 만든다.
  * 기동 시에만 만들면 배포일과 심사일이 다를 때(8/19 배포 → 8/21 심사) 문제가 생긴다. 동료 계정은
@@ -70,17 +75,34 @@ public class DemoDataSeeder implements ApplicationRunner {
     public static final String DEMO_PASSWORD = "withu1234";
     private static final String DEMO_GROUP_CODE = "TEAM33";
 
-    /** 데모 그룹을 채워줄 동료들 — 그룹 피드·랭킹이 비어 보이지 않게 함께 만든다. */
+    /**
+     * 데모 그룹을 채워줄 동료들 — 그룹 피드·랭킹이 비어 보이지 않게 함께 만든다.
+     *
+     * <p><b>정원(4명)을 다 채우지 않고 세 명만 만든다.</b> 부스에서 앱을 본 사람이 직접 가입해
+     * {@code TEAM33}을 넣어보는 흐름이 대회 투표와 직결되는데, 넷을 다 채우면 그 사람은
+     * "그룹 인원이 가득 찼습니다"만 보게 된다. 혼자 방을 새로 만들면 그룹 랭킹·피드가 텅 비어
+     * 이 앱의 핵심인 "함께"가 하나도 보이지 않는다. 한 자리를 비워 두면 이미 6일을 달려온
+     * 그룹에 바로 합류하는 경험이 된다.
+     *
+     * <p>달성률은 높음(민준)·중간(테스터)·낮음(서연)으로 벌려 둔다. 난이도 자동 조절이
+     * 무엇을 보고 움직이는지가 랭킹 한 화면에서 드러나야 하기 때문이다.
+     */
     private static final List<Member> MEMBERS = List.of(
             new Member(DEMO_EMAIL, "테스터", "dino", Goal.DIET, Gender.FEMALE, 24, 165, 60,
                     new int[]{3, 2, 3, 2, 3, 2}),
             new Member("mate1@withu.app", "민준", "tit", Goal.BULK, Gender.MALE, 22, 175, 65,
                     new int[]{3, 3, 3, 3, 2, 3}),
             new Member("mate2@withu.app", "서연", "hedgehog", Goal.HEALTH, Gender.FEMALE, 28, 162, 55,
-                    new int[]{1, 1, 0, 1, 0, 1}),
-            new Member("mate3@withu.app", "수아", "bat", Goal.DIET, Gender.FEMALE, 26, 168, 58,
-                    new int[]{2, 3, 2, 3, 2, 2})
+                    new int[]{1, 1, 0, 1, 0, 1})
     );
+
+    /**
+     * 예전 배포에서 만들었지만 지금은 만들지 않는 데모 계정.
+     *
+     * <p>정리는 {@link #MEMBERS}의 이메일로 대상을 고르기 때문에, 목록에서 빼기만 하면 이미 DB에
+     * 있는 계정이 영영 지워지지 않고 전체 랭킹에 남는다. 빼는 순간 여기로 옮겨야 한다.
+     */
+    private static final List<String> RETIRED_EMAILS = List.of("mate3@withu.app");
 
     private static final List<String> DIET_TITLES = List.of(
             "아침 든든하게 챙겨 먹기", "점심 단백질 위주로 먹기", "저녁 탄수화물 줄이기",
@@ -99,6 +121,8 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final MissionRepository missionRepository;
     private final MealRepository mealRepository;
     private final StoredFileRepository storedFileRepository;
+    private final FeedReactionRepository feedReactionRepository;
+    private final FeedCommentRepository feedCommentRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
     private final ChallengeService challengeService;
@@ -154,11 +178,61 @@ public class DemoDataSeeder implements ApplicationRunner {
             seedMember(MEMBERS.get(i), users.get(i), group, today);
         }
 
+        seedFeed(group, users, today);
+
         settleChallenge(users.get(0).getId());
 
         seededOn = today;
         log.info("심사용 데모 데이터를 생성했습니다. 계정={} / 그룹코드={} / {}일차 (7일 결과 정산 완료)",
                 DEMO_EMAIL, DEMO_GROUP_CODE, CYCLE_DAYS);
+    }
+
+    /**
+     * 그룹 피드에 오늘의 반응과 댓글을 채워 둔다.
+     *
+     * <p>이걸 안 하면 심사위원이 "그룹 피드" 탭을 열었을 때 반응 0개, 댓글 0개인 빈 화면을 본다.
+     * 미션·랭킹은 채워 두면서 정작 <b>이 앱이 개인 기록 앱과 다르다고 주장하는 화면</b>만 비어
+     * 있으면, 트랙 심사의 "차별적 새로움"을 스스로 지우는 셈이다.
+     *
+     * <p>테스터(심사 계정)는 <b>반응을 남기지 않은 상태</b>로 둔다. 받은 반응만 보이고 내가 누른
+     * 것은 없어야, 심사위원이 직접 눌러보는 여지가 남는다.
+     */
+    private void seedFeed(Group group, List<User> users, LocalDate today) {
+        Long tester = users.get(0).getId();
+        Long minjun = users.get(1).getId();
+        Long seoyeon = users.get(2).getId();
+
+        feedReactionRepository.saveAll(List.of(
+                reaction(group, today, minjun, seoyeon, "👍"),
+                reaction(group, today, seoyeon, minjun, "❤️"),
+                reaction(group, today, minjun, tester, "❤️"),
+                reaction(group, today, seoyeon, tester, "😂")
+        ));
+
+        feedCommentRepository.saveAll(List.of(
+                comment(group, today, minjun, "다들 오늘도 화이팅! 저녁에 같이 걸을 사람?"),
+                comment(group, today, seoyeon, "요즘 계속 놓쳤는데 오늘은 하나 했어요 ㅎㅎ"),
+                comment(group, today, minjun, "서연님 오늘 사진 좋다 👏")
+        ));
+    }
+
+    private FeedReaction reaction(Group group, LocalDate date, Long actor, Long target, String emoji) {
+        return FeedReaction.builder()
+                .groupId(group.getId())
+                .feedDate(date)
+                .actorUserId(actor)
+                .targetUserId(target)
+                .emoji(emoji)
+                .build();
+    }
+
+    private FeedComment comment(Group group, LocalDate date, Long author, String text) {
+        return FeedComment.builder()
+                .groupId(group.getId())
+                .feedDate(date)
+                .authorUserId(author)
+                .text(text)
+                .build();
     }
 
     /**
@@ -238,7 +312,7 @@ public class DemoDataSeeder implements ApplicationRunner {
             }
         }
         // 심사 계정의 오늘 미션은 직접 인증해볼 수 있도록 비워두고, 동료들은 일부 완료해 둔다.
-        // 넷 다 0%면 그룹 피드가 전원 슬픈 표정이라 앱이 죽어 보인다.
+        // 셋 다 0%면 그룹 피드가 전원 슬픈 표정이라 앱이 죽어 보인다.
         int todayDone = member.email().equals(DEMO_EMAIL) ? 0 : member.dailyDone()[CYCLE_DAYS - 2];
         for (int seq = 0; seq < MISSIONS_PER_DAY; seq++) {
             missions.add(buildMission(userId, group, today, seq));
@@ -348,7 +422,8 @@ public class DemoDataSeeder implements ApplicationRunner {
      * 외래키 때문에 자식 테이블부터 지운다.
      */
     private void clearPreviousDemoData() {
-        List<String> emails = MEMBERS.stream().map(Member::email).toList();
+        List<String> emails = new ArrayList<>(MEMBERS.stream().map(Member::email).toList());
+        emails.addAll(RETIRED_EMAILS);
         List<Long> userIds = userRepository.findAll().stream()
                 .filter(u -> emails.contains(u.getEmail()))
                 .map(User::getId)
@@ -358,6 +433,20 @@ public class DemoDataSeeder implements ApplicationRunner {
         }
 
         String inClause = userIds.stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElseThrow();
+
+        // 사진 본문(stored_files)은 meals가 '/api/files/{uuid}' 문자열로만 가리킨다(외래키가 아니다).
+        // meals를 먼저 지우면 어떤 파일이 고아인지 알 방법이 없어져, 재기동할 때마다 사진이
+        // DB에 그대로 쌓인다. 실제로 며칠 만에 고아 사진 8건이 남아 있었다. 먼저 지운다.
+        jdbcTemplate.update("DELETE FROM stored_files WHERE id IN ("
+                + "SELECT id FROM (SELECT SUBSTRING_INDEX(photo_url, '/', -1) AS id FROM meals "
+                + "WHERE user_id IN (" + inClause + ") AND photo_url IS NOT NULL) AS doomed)");
+
+        // 피드는 group_id로만 묶여 있어 사용자 삭제로는 따라 지워지지 않는다. 남겨두면 다음 사이클의
+        // 피드에 지난 반응이 섞여 보인다.
+        jdbcTemplate.update("DELETE FROM feed_reactions WHERE actor_user_id IN (" + inClause + ")"
+                + " OR target_user_id IN (" + inClause + ")");
+        jdbcTemplate.update("DELETE FROM feed_comments WHERE author_user_id IN (" + inClause + ")");
+
         jdbcTemplate.update("DELETE FROM challenge_results WHERE user_id IN (" + inClause + ")");
         jdbcTemplate.update("DELETE FROM user_badges WHERE user_id IN (" + inClause + ")");
         jdbcTemplate.update("DELETE FROM meals WHERE user_id IN (" + inClause + ")");

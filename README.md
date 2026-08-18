@@ -17,7 +17,7 @@ WITHU — AI 기반 개인 맞춤 건강 미션과 그룹 동기부여를 결합
 |---|---|
 | **웹앱** (팀원·심사위원에게 줄 주소) | https://rise-client-rohdaeyoungs-projects.vercel.app |
 | API 문서 (Swagger) | https://1-201-117-9.nip.io/swagger-ui.html |
-| 백엔드 서버 | `1-201-117-9.nip.io` — 화면이 없는 API 서버라 브라우저로 열면 403이 정상입니다 |
+| 백엔드 서버 | `1-201-117-9.nip.io` — 화면이 없는 API 서버라 브라우저로 열면 `AUTH_003` JSON에 **401**이 뜨는 것이 정상입니다 |
 
 **테스트 계정: `test@withu.app` / `withu1234`** (그룹 코드 `TEAM33`, Day 7 상태)
 
@@ -700,7 +700,7 @@ DEMO_SEED=true            # 심사용 데모 계정이 필요할 때만
 ### 옮긴 뒤 확인한 것 (또 옮기게 되면 이대로 다시 하세요)
 
 ```bash
-# 1. 서버가 살아 있는가 (403이 정상 — 화면 없는 API 서버라 인증 없이는 거절)
+# 1. 서버가 살아 있는가 (401이 정상 — 화면 없는 API 서버라 인증 없이는 거절)
 curl -o /dev/null -w "%{http_code}\n" https://1-201-117-9.nip.io/api/auth/me
 
 # 2. CORS가 좁혀졌는가 — 403만 나오고 허용 헤더는 안 보여야 정상
