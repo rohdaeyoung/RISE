@@ -1,0 +1,50 @@
+server:
+  # 대부분의 배포 플랫폼(Railway·Heroku·Cloudtype 등)은 붙일 포트를 PORT로 알려주고,
+  # 그 포트에 안 붙으면 "배포는 됐는데 접속이 안 되는" 상태가 된다. 없으면 8080을 쓴다.
+  port: ${PORT:8080}
+  # 프록시(로드밸런서) 뒤에 있을 때 원래 요청이 https였다는 것을 알아야 Swagger의 "Try it out"이
+  # http로 요청을 보내 막히지 않는다.
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: withu-server
+  profiles:
+    active: local
+  config:
+    # 로컬 개발 시 프로젝트 루트의 .env(gitignore 처리됨)를 읽어 OPENAI_API_KEY 등을 주입한다.
+    import: optional:file:.env[.properties]
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+jwt:
+  secret: ${JWT_SECRET:local-dev-secret-key-change-me-please-32bytes-min}
+  # 7일. 예전 값(24시간)은 챌린지 한 사이클(7일)보다 짧아서, 하루만 지나도 로그인해 둔 브라우저의
+  # 모든 요청이 거절됐다. 리프레시 토큰이 없어 그때 다시 로그인하는 것 말고는 방법이 없으므로,
+  # 최소한 한 사이클 동안은 끊기지 않게 사이클 길이에 맞춘다.
+  access-token-validity-ms: ${JWT_ACCESS_VALIDITY_MS:604800000}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  mission-model: ${OPENAI_MISSION_MODEL:gpt-4o-mini}
+  vision-model: ${OPENAI_VISION_MODEL:gpt-4o-mini}
+  # 위 모델의 하루 요청 한도가 차면 앞에서부터 순서대로 이어서 시도한다.
+  # 한도는 모델마다 따로 세므로, 같은 키로도 계속 쓸 수 있다(추가 결제 아님).
+  # 사진 판정에도 쓰이니 반드시 이미지를 볼 수 있는 모델만 넣을 것.
+  fallback-models: ${OPENAI_FALLBACK_MODELS:gpt-4.1-mini,gpt-4.1-nano}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+withu:
+  cors:
+    # 배포 시 프론트 도메인만 남긴다. "*"는 로컬 개발 편의를 위한 기본값이다.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  demo:
+    # 심사용 데모 계정/그룹을 서버 기동 시 다시 만든다(7일차 상태). 배포 환경에서 true로 켠다.
+    seed: ${DEMO_SEED:false}
