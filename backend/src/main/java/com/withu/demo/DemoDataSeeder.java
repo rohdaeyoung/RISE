@@ -259,11 +259,24 @@ public class DemoDataSeeder implements ApplicationRunner {
         challengeService.endChallenge(demoUserId);
     }
 
+    /**
+     * 데모 계정을 만든다. <b>이미 있으면 그 행을 그대로 쓴다 — 지우고 새로 만들지 않는다.</b>
+     *
+     * <p>예전에는 매번 지우고 다시 만들었는데, 그러면 {@code users.id}가 바뀐다. JWT 안에는
+     * 로그인 시점의 id가 박혀 있고 필터는 DB를 조회하지 않으므로, 어제 로그인해 둔 브라우저는
+     * <b>토큰이 아직 유효한 채로 존재하지 않는 사용자를 가리키게</b> 된다. 그 상태에서는
+     * {@code /api/auth/me}가 404, {@code /api/groups/me}가 403인데 프론트는 401만 만료로
+     * 처리하므로, 로그아웃도 안 되고 미션·그룹이 전부 빈 화면이 된다.
+     *
+     * <p>심사위원이 전날 열어둔 탭으로 다시 들어오는 경우가 정확히 이 상황이라, id를 유지한다.
+     * id만 그대로면 토큰이 계속 통해 <b>재로그인 없이 이어집니다.</b>
+     */
     private User createUser(Member member) {
-        User user = userRepository.save(User.builder()
-                .email(member.email())
-                .password(passwordEncoder.encode(DEMO_PASSWORD))
-                .build());
+        User user = userRepository.findByEmail(member.email())
+                .orElseGet(() -> userRepository.save(User.builder()
+                        .email(member.email())
+                        .password(passwordEncoder.encode(DEMO_PASSWORD))
+                        .build()));
         user.changeNickname(member.nickname());
         userRepository.flush();
 
@@ -457,8 +470,25 @@ public class DemoDataSeeder implements ApplicationRunner {
                 + "(SELECT id FROM characters WHERE user_id IN (" + inClause + "))");
         jdbcTemplate.update("DELETE FROM characters WHERE user_id IN (" + inClause + ")");
         jdbcTemplate.update("DELETE FROM study_groups WHERE code = ?", DEMO_GROUP_CODE);
-        jdbcTemplate.update("DELETE FROM users WHERE id IN (" + inClause + ")");
-        log.info("이전 데모 데이터를 정리했습니다. 계정 {}개", userIds.size());
+
+        // users 행은 남긴다. 지우면 id가 바뀌고, 어제 로그인해 둔 브라우저의 토큰이 없는 사용자를
+        // 가리키게 된다(자세한 이유는 createUser 주석). 대신 누적값만 0으로 되돌린다 —
+        // 코인·점수는 아래에서 완료한 미션 수만큼 다시 더하므로, 비우지 않으면 매일 불어난다.
+        jdbcTemplate.update("UPDATE users SET coins = 0, points = 0 WHERE id IN (" + inClause + ")");
+
+        // 더 이상 만들지 않는 계정만 실제로 지운다. 이건 남겨둘 이유가 없고,
+        // 남기면 전체 랭킹에 유령으로 계속 뜬다.
+        List<Long> retiredIds = userRepository.findAll().stream()
+                .filter(u -> RETIRED_EMAILS.contains(u.getEmail()))
+                .map(User::getId)
+                .toList();
+        if (!retiredIds.isEmpty()) {
+            String retiredIn = retiredIds.stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElseThrow();
+            jdbcTemplate.update("DELETE FROM users WHERE id IN (" + retiredIn + ")");
+        }
+
+        log.info("이전 데모 데이터를 정리했습니다. 계정 {}개 (id 유지, 폐기 {}개 삭제)",
+                userIds.size(), retiredIds.size());
     }
 
     private record Member(
