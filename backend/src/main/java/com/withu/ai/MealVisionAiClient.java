@@ -14,7 +14,12 @@ public interface MealVisionAiClient {
      */
     MealAnalysisResult analyze(MultipartFile photo, String foodName, String portion, String goal, String missionTitle);
 
-    record MealAnalysisResult(boolean achieved, InternalFit internalFit) {
+    /**
+     * @param food AI가 사진에서 무엇을 봤는지 (예: "단백질 음료"). 판정 결과와 함께 사용자에게 보여준다 —
+     *             "달성/미달성"만 돌려주면 AI가 사진을 실제로 읽었는지 알 수 없어서, 초코우유를 올렸는데
+     *             통과하면 사진을 본 것인지 아무거나 통과시킨 것인지 구분이 안 된다.
+     */
+    record MealAnalysisResult(boolean achieved, InternalFit internalFit, String food) {
     }
 
     enum InternalFit {

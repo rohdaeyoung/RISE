@@ -18,6 +18,6 @@ public class MockMealVisionAiClient implements MealVisionAiClient {
         double r = ThreadLocalRandom.current().nextDouble();
         InternalFit fit = r < 0.6 ? InternalFit.GOOD : r < 0.85 ? InternalFit.NORMAL : InternalFit.BAD;
         boolean achieved = fit != InternalFit.BAD;
-        return new MealAnalysisResult(achieved, fit);
+        return new MealAnalysisResult(achieved, fit, "mock - 사진을 판별하지 않음");
     }
 }

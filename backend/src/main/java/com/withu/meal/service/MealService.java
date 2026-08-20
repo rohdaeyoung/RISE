@@ -66,7 +66,9 @@ public class MealService {
         if (result.achieved()) {
             missionService.completeFirstPendingDietMission(userId);
         }
-        return Response.from(meal);
+        // AI가 무엇으로 봤는지 함께 돌려준다. 미달성일 때 "왜 안 됐는지"를 알 수 있어야 다시 찍을 수 있고,
+        // 달성일 때도 사진을 실제로 읽었다는 것이 화면에 드러난다.
+        return Response.of(meal, result.food());
     }
 
     /**

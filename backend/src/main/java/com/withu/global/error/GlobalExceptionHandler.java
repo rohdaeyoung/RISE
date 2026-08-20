@@ -23,7 +23,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleCustomException(CustomException e) {
         ErrorCode errorCode = e.getErrorCode();
         return ResponseEntity.status(errorCode.getStatus())
-                .body(ApiResponse.error(errorCode.getCode(), errorCode.getMessage(), e.getField()));
+                .body(ApiResponse.error(errorCode.getCode(), e.getUserMessage(), e.getField()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

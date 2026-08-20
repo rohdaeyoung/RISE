@@ -95,14 +95,19 @@ public class MissionService {
             throw new CustomException(ErrorCode.PHOTO_ALREADY_USED);
         }
 
-        if (!verifySafely(photo, mission.getTitle()).achieved()) {
-            throw new CustomException(ErrorCode.MISSION_PHOTO_MISMATCH);
+        LifestyleVerification verification = verifySafely(photo, mission.getTitle());
+        if (!verification.achieved()) {
+            // AI가 무엇으로 봤는지 알려준다. "사진이 미션과 맞지 않아요"만 나오면 무엇을 다시 찍어야
+            // 할지 알 수 없고, 사진을 실제로 본 것인지도 알 수 없다.
+            throw new CustomException(ErrorCode.MISSION_PHOTO_MISMATCH, null,
+                    "AI가 '%s'(으)로 봤어요. 미션을 수행한 사진으로 다시 올려주세요"
+                            .formatted(verification.seen()));
         }
 
         // 판정이 끝난 뒤에 저장한다 — 미달성 사진까지 DB에 쌓을 이유가 없다.
         mission.complete(fileStorageService.store(photo));
         rewardCoins(userId);
-        return Response.from(mission, LocalTime.now());
+        return Response.of(mission, LocalTime.now(), verification.seen());
     }
 
     /** 사진이 아닌 파일은 AI를 부르기 전에 걸러낸다 (MealService.requireImage와 같은 이유). */

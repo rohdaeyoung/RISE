@@ -102,12 +102,13 @@ public class OpenAiMealVisionClient implements MealVisionAiClient {
             JsonNode parsed = objectMapper.readTree(content);
 
             boolean achieved = parsed.path("achieved").asBoolean(false);
+            String food = parsed.path("food").asText("-");
             // 오판 신고가 들어왔을 때 AI가 사진을 무엇으로 봤는지 확인할 수 있어야 한다.
             // 사진 자체는 남기지 않고 판단 근거만 남긴다.
             log.info("식단 분석 결과. 미션={} 인식={} 달성={} 적합도={}",
-                    missionTitle, parsed.path("food").asText("-"), achieved, parsed.path("internalFit").asText("-"));
+                    missionTitle, food, achieved, parsed.path("internalFit").asText("-"));
             InternalFit fit = InternalFit.valueOf(parsed.path("internalFit").asText("NORMAL").toUpperCase());
-            return new MealAnalysisResult(achieved, fit);
+            return new MealAnalysisResult(achieved, fit, food);
         } catch (Exception e) {
             throw OpenAiErrors.translate("AI 식단 분석", e);
         }

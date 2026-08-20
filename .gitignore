@@ -1,0 +1,14 @@
+# AI 코딩 도구가 만드는 작업 기록. 제출 저장소에 들어갈 내용이 아니다.
+**/.omc/
+**/.claude/settings.local.json
+
+# 환경변수 (API 키·DB 비밀번호)
+.env
+**/.env
+!**/.env.example
+**/.env.local
+
+# 빌드 산출물
+**/build/
+**/dist/
+**/node_modules/
